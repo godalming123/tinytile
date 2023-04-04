@@ -1,3 +1,4 @@
+#include <wayland-util.h>
 #define _POSIX_C_SOURCE 200112L
 
 #include <assert.h>
@@ -7,8 +8,10 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <libinput.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
+#include <wlr/backend/libinput.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_compositor.h>
@@ -159,6 +162,13 @@ static void focus_view(struct tinywl_view *view, struct wlr_surface *surface) {
 	}
 }
 
+static void killfocused(struct tinywl_server *server) {
+	struct tinywl_view *c;
+	wl_list_for_each(c, &server->views, link)
+		// TODO: add a way to kill the focused window
+		fprintf(stdout, "view found");
+}
+
 static struct tinywl_view *desktop_view_at(struct tinywl_server *server,
                                            double lx, double ly,
                                            struct wlr_surface **surface,
@@ -275,8 +285,12 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 			// In wlroots we must handle switching virtual terminals
 			// ourselfs
 			for (unsigned int _ = 0; _ < 12; _++) {
-				if (syms[nsyms - 1] == (XKB_KEY_XF86Switch_VT_1 + _)) {
-					wlr_session_change_vt(wlr_backend_get_session(server->backend), _);
+				if (syms[nsyms - 1] ==
+				    (XKB_KEY_XF86Switch_VT_1 + _)) {
+					wlr_session_change_vt(
+					        wlr_backend_get_session(
+					                server->backend),
+					        (_ + 1));
 					return;
 				}
 			}
@@ -290,8 +304,8 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 
 	// Otherwise, we pass it along to the client.
 	wlr_seat_set_keyboard(seat, keyboard->wlr_keyboard);
-	wlr_seat_keyboard_notify_key(seat, event->time_msec,
-	                             event->keycode, event->state);
+	wlr_seat_keyboard_notify_key(seat, event->time_msec, event->keycode,
++	                             event->state);
 }
 
 static void keyboard_handle_destroy(struct wl_listener *listener, void *data) {
@@ -345,9 +359,47 @@ static void server_new_keyboard(struct tinywl_server *server,
 static void server_new_pointer(struct tinywl_server *server,
                                struct wlr_input_device *device) {
 	// We don't do anything special with pointers. All of our pointer
-	// handling is proxied through wlr_cursor. On another compositor, you
-	// might take this opportunity to do libinput configuration on the
-	// device to set acceleration, etc.
+	// handling is proxied through wlr_cursor.
+	struct wlr_pointer *pointer = wlr_pointer_from_input_device(device);
+	if (wlr_input_device_is_libinput(&pointer->base)) {
+		struct libinput_device *libinput_device = (struct libinput_device*)
+			wlr_libinput_get_device_handle(&pointer->base);
+
+		if (libinput_device_config_scroll_has_natural_scroll(libinput_device))
+			libinput_device_config_scroll_set_natural_scroll_enabled(libinput_device, 0);
+
+		if (libinput_device_config_tap_get_finger_count(libinput_device)) { // If the device is a trackpad
+			libinput_device_config_tap_set_enabled(libinput_device, 1);
+			libinput_device_config_tap_set_drag_enabled(libinput_device, 1);
+			libinput_device_config_tap_set_drag_lock_enabled(libinput_device, 1);
+			libinput_device_config_tap_set_button_map(libinput_device, LIBINPUT_CONFIG_TAP_MAP_LRM);
+			if (libinput_device_config_scroll_has_natural_scroll(libinput_device))
+				libinput_device_config_scroll_set_natural_scroll_enabled(libinput_device, 1);
+		}
+
+		if (libinput_device_config_dwt_is_available(libinput_device))
+			libinput_device_config_dwt_set_enabled(libinput_device, 1);
+
+		if (libinput_device_config_left_handed_is_available(libinput_device))
+			libinput_device_config_left_handed_set(libinput_device, 0);
+
+		if (libinput_device_config_middle_emulation_is_available(libinput_device))
+			libinput_device_config_middle_emulation_set_enabled(libinput_device, 0);
+
+		if (libinput_device_config_scroll_get_methods(libinput_device) != LIBINPUT_CONFIG_SCROLL_NO_SCROLL)
+			libinput_device_config_scroll_set_method (libinput_device, LIBINPUT_CONFIG_SCROLL_2FG);
+	
+		if (libinput_device_config_click_get_methods(libinput_device) != LIBINPUT_CONFIG_CLICK_METHOD_NONE)
+			libinput_device_config_click_set_method (libinput_device, LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS);
+
+		if (libinput_device_config_send_events_get_modes(libinput_device))
+			libinput_device_config_send_events_set_mode(libinput_device, LIBINPUT_CONFIG_SEND_EVENTS_ENABLED);
+
+		if (libinput_device_config_accel_is_available(libinput_device)) {
+			libinput_device_config_accel_set_profile(libinput_device, LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE);
+			libinput_device_config_accel_set_speed(libinput_device, 0.5);
+		}
+	}
 	wlr_cursor_attach_input_device(server->cursor, device);
 }
 
@@ -851,13 +903,13 @@ static void server_new_xdg_surface(struct wl_listener *listener, void *data) {
 int main(int argc, char *argv[]) {
 	wlr_log_init(WLR_DEBUG, NULL);
 
-	for (int _=1; _<argc; _++) {
+	for (int _ = 1; _ < argc; _++) {
 		if (!strcmp(argv[_], "about")) {
-			fprintf(stderr, "Godalming123's DWL dotfiles based on DWL 0.4\n");
+			fprintf(stderr, "Godalming123's DWL dotfiles based on "
+			                "DWL 0.4\n");
 			exit(EXIT_FAILURE);
-		}
-		else {
-			fprintf(stderr, "Use the `about command to see info`");
+		} else {
+			fprintf(stderr, "Use the `about` command to see info");
 			exit(EXIT_FAILURE);
 		}
 	}
