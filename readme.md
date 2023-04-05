@@ -1,21 +1,36 @@
 # Tinytile
 A fork of tinywl designed to be a simple base for a tiling WM
 
+# Building from source
+1. install dependencys (also install with `-devel` if you distro provides those packages):
+	- wlroots
+	- wayland-protocols
+   EG for arch:
+   ```
+pacman -S wlroots wayland-protocols
+   ```
+2. run `meson build`
+3. run `ninja -C build`
+4. run `ninja -C build install`
+
 # Todo
 ## Implement protocols
  - Layer shell
  - Virtual keyboard
  - Idle_inhibitor_v1
+ - Drag icon
 ## Implement config options
  - Keybindings on release
  - sloppy focus
  - Tiling
- - Changing keymaps
  - Changing monitor configurations
- - Add configuration for pointers via libinput
- - Add a way to close windows with the keyboard
  - Use alt + mouse to drag/resize windows
 ## Fix bugs
- - gnome web cannot display websites
+ - gnome web cannot display websites (note: when installed as system package instead of flatpak it works (however the system package is gtk3 based which may be the reason for this))
+ - windows appear to hide when you exit and re-enter the virtual terminal
+ - When a window is closed the next window does not get focused
 # Done
-  - Allow switching virtual terminals
+ - Add a way to close windows with the keyboard
+ - Allow switching virtual terminals
+ - Add configuration for pointers via libinput
+ - Changing keymaps

@@ -39,6 +39,7 @@ wlroots        = dependency('wlroots', version: '>= 0.16.0', fallback: ['wlroots
 wayland_protos = dependency('wayland-protocols', version: '>=1.14')
 wayland_server = dependency('wayland-server')
 xkbcommon      = dependency('xkbcommon')
+libinput      = dependency('libinput')
 
 wl_protocol_dir = wayland_protos.get_variable('pkgdatadir')
 wayland_scanner = find_program('wayland-scanner')
@@ -73,6 +74,7 @@ executable(
     server_protos,
     wayland_server,
     xkbcommon,
+    libinput,
   ],
   install: true,
 )
