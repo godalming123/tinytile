@@ -25,6 +25,7 @@
 #include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_subcompositor.h>
+#include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
@@ -64,6 +65,7 @@ struct tinywl_server {
 
 	struct wlr_seat *seat;
 	struct wl_listener new_input;
+	struct wl_listener new_virtual_keyboard;
 	struct wl_listener request_cursor;
 	struct wl_listener request_set_selection;
 	struct wl_list keyboards;
@@ -227,7 +229,8 @@ static void killfocused(struct tinywl_server *server) {
 	struct wlr_xdg_surface *xdg_surface;
 	if (root_surface && wlr_surface_is_xdg_surface(root_surface) &&
 	    (xdg_surface = wlr_xdg_surface_from_wlr_surface(root_surface))) {
-		// TODO: send cursor events to the surface underneath the cursor after you have closed the window
+		// TODO: send cursor events to the surface underneath the cursor after you have
+		// closed the window
 		// TODO: make the previously focused client focus
 		wlr_xdg_toplevel_send_close(xdg_surface->toplevel);
 	}
@@ -380,6 +383,12 @@ static void server_new_keyboard(struct tinywl_server *server, struct wlr_input_d
 
 	// And add the keyboard to our list of keyboards
 	wl_list_insert(&server->keyboards, &keyboard->link);
+}
+
+static void createVirtualKeyboard(struct wl_listener *listener, void *data) {
+	struct tinywl_server *server = wl_container_of(listener, server, new_input);
+	struct wlr_input_device *keyboard = data;
+	server_new_keyboard(server, keyboard);
 }
 
 static void server_new_pointer(struct tinywl_server *server, struct wlr_input_device *device) {
@@ -984,14 +993,19 @@ int main(int argc, char *argv[]) {
 	// And more comments are sprinkled throughout the notify functions
 	// above.
 	server.cursor_mode = TINYWL_CURSOR_PASSTHROUGH;
+
 	server.cursor_motion.notify = server_cursor_motion;
 	wl_signal_add(&server.cursor->events.motion, &server.cursor_motion);
+
 	server.cursor_motion_absolute.notify = server_cursor_motion_absolute;
 	wl_signal_add(&server.cursor->events.motion_absolute, &server.cursor_motion_absolute);
+
 	server.cursor_button.notify = server_cursor_button;
 	wl_signal_add(&server.cursor->events.button, &server.cursor_button);
+
 	server.cursor_axis.notify = server_cursor_axis;
 	wl_signal_add(&server.cursor->events.axis, &server.cursor_axis);
+
 	server.cursor_frame.notify = server_cursor_frame;
 	wl_signal_add(&server.cursor->events.frame, &server.cursor_frame);
 
@@ -1000,11 +1014,21 @@ int main(int argc, char *argv[]) {
 	// pointer, touch, and drawing tablet device. We also rig up a listener
 	// to let us know when new input devices are available on the backend.
 	wl_list_init(&server.keyboards);
+
 	server.new_input.notify = server_new_input;
 	wl_signal_add(&server.backend->events.new_input, &server.new_input);
+
+	struct wlr_virtual_keyboard_manager_v1 *virtualKeyboardMgr =
+	        wlr_virtual_keyboard_manager_v1_create(server.wl_display);
+	server.new_virtual_keyboard.notify = createVirtualKeyboard;
+	wl_signal_add(&virtualKeyboardMgr->events.new_virtual_keyboard,
+	              &server.new_virtual_keyboard);
+
 	server.seat = wlr_seat_create(server.wl_display, "seat0");
+
 	server.request_cursor.notify = seat_request_cursor;
 	wl_signal_add(&server.seat->events.request_set_cursor, &server.request_cursor);
+
 	server.request_set_selection.notify = seat_request_set_selection;
 	wl_signal_add(&server.seat->events.request_set_selection, &server.request_set_selection);
 

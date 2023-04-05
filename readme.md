@@ -16,7 +16,6 @@ pacman -S wlroots wayland-protocols
 # Todo
 ## Implement protocols
  - Layer shell
- - Virtual keyboard
  - Idle_inhibitor_v1
  - Drag icon
 ## Implement config options
@@ -27,10 +26,11 @@ pacman -S wlroots wayland-protocols
  - Use alt + mouse to drag/resize windows
 ## Fix bugs
  - gnome web cannot display websites (note: when installed as system package instead of flatpak it works (however the system package is gtk3 based which may be the reason for this))
- - windows appear to hide when you exit and re-enter the virtual terminal
  - When a window is closed the next window does not get focused
 # Done
  - Add a way to close windows with the keyboard
  - Allow switching virtual terminals
  - Add configuration for pointers via libinput
  - Changing keymaps
+## Implement protocols
+ - Virtual keyboard (needs testing)
