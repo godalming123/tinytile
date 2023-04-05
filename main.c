@@ -9,6 +9,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <wayland-server-core.h>
+#include <wayland-server-protocol.h>
 #include <wayland-util.h>
 #include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
@@ -50,6 +51,8 @@ struct tinywl_server {
 	struct wlr_renderer *renderer;
 	struct wlr_allocator *allocator;
 	struct wlr_scene *scene;
+
+	bool ignoreNextAltRelease;
 
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_surface;
@@ -317,6 +320,11 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 	uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 
 	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+		if ((modifiers & WLR_MODIFIER_ALT) && keycode != 64) {
+			// if the alt modifier is being held and you press a key that is not alt
+			// then we need to ignore the next keyrelease
+			server->ignoreNextAltRelease = true;
+		}
 		if (modifiers == (WLR_MODIFIER_ALT | WLR_MODIFIER_CTRL)) {
 			// In wlroots we must handle switching virtual terminals
 			// ourselfs
@@ -327,12 +335,20 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 					return;
 				}
 			}
-		} else if (modifiers & WLR_MODIFIER_ALT)
-			// If alt is held down and this button was
-			// pressed, we attempt to process it as a
-			// compositor keybinding.
+		} else if (modifiers == WLR_MODIFIER_ALT)
+			// If alt is held down, we attempt to process it as a compositor keybinding.
 			if (handle_keybinding(server, syms[nsyms - 1]))
+				// If we succeeded in processing it the we should not pass the event
+				// to the client
 				return;
+	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
+		// if the alt modifier is being held and you release it
+		if (modifiers == WLR_MODIFIER_ALT && syms[0] == 65513) {
+			if (!server->ignoreNextAltRelease)
+				run("alacritty -e neofetch");
+			server->ignoreNextAltRelease = false;
+			return;
+		}
 	}
 
 	// Otherwise, we pass it along to the client.

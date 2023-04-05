@@ -19,7 +19,6 @@ pacman -S wlroots wayland-protocols
  - Idle_inhibitor_v1
  - Drag icon
 ## Implement config options
- - Keybindings on release
  - sloppy focus
  - Tiling
  - Changing monitor configurations
@@ -32,5 +31,6 @@ pacman -S wlroots wayland-protocols
  - Allow switching virtual terminals
  - Add configuration for pointers via libinput
  - Changing keymaps
+ - Keybindings on release
 ## Implement protocols
  - Virtual keyboard (needs testing)
