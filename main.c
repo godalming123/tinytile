@@ -138,6 +138,10 @@ static void reset_cursor_mode(struct tinywl_server *server) {
 // MANAGING CLIENTS //
 //////////////////////
 
+struct wlr_output *getMonitorViewIsOn(struct tinywl_view *view) {
+	return wlr_output_layout_output_at(view->server->output_layout, view->x, view->y);
+}
+
 static void killfocused(struct tinywl_server *server) {
 	struct wlr_surface *root_surface = server->seat->keyboard_state.focused_surface;
 	struct wlr_xdg_surface *xdg_surface;
@@ -321,6 +325,20 @@ static void xdg_toplevel_request_maximize(struct wl_listener *listener, void *da
 static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *data) {
 	// Just as with request_maximize, we must send a configure here.
 	struct tinywl_view *view = wl_container_of(listener, view, request_fullscreen);
+
+	if (view->xdg_toplevel->requested.fullscreen) {
+		struct wlr_output *monitor = getMonitorViewIsOn(view);
+		struct wlr_output_layout_output *monitorLayoutOutput = wlr_output_layout_get(view->server->output_layout, monitor);
+
+		wlr_scene_node_set_position(&view->scene_tree->node, monitorLayoutOutput->x, monitorLayoutOutput->y);
+		wlr_xdg_toplevel_set_size(view->xdg_toplevel, monitor->width, monitor->height);
+		wlr_xdg_toplevel_set_fullscreen(view->xdg_toplevel, 1);
+	} else {
+		wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
+		wlr_xdg_toplevel_set_size(view->xdg_toplevel, 900, 700);
+		wlr_xdg_toplevel_set_fullscreen(view->xdg_toplevel, 0);
+	}
+
 	wlr_xdg_surface_schedule_configure(view->xdg_toplevel->base);
 }
 

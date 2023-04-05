@@ -32,5 +32,6 @@ pacman -S wlroots wayland-protocols
  - Add configuration for pointers via libinput
  - Changing keymaps
  - Keybindings on release
+ - Add fullscreen windows (the current implementation is very naive and untested on multiple monitor setups)
 ## Implement protocols
  - Virtual keyboard (needs testing)
