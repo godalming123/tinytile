@@ -3,7 +3,9 @@
 #include <assert.h>
 #include <getopt.h>
 #include <libinput.h>
+#include <linux/input-event-codes.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -29,6 +31,7 @@
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/util/edges.h>
 #include <wlr/util/log.h>
 #include <xdg-shell-protocol.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
@@ -269,34 +272,37 @@ static void begin_interactive(struct tinywl_view *view, enum tinywl_cursor_mode 
 	// This function sets up an interactive move or resize operation, where
 	// the compositor stops propegating pointer events to clients and
 	// instead consumes them itself, to move or resize windows.
-	struct tinywl_server *server = view->server;
-	struct wlr_surface *focused_surface = server->seat->pointer_state.focused_surface;
-	if (view->xdg_toplevel->base->surface != wlr_surface_get_root_surface(focused_surface)) {
-		// Deny move/resize requests from unfocused clients.
-		return;
-	}
-	server->grabbed_view = view;
-	server->cursor_mode = mode;
+	if (view) {
+		struct tinywl_server *server = view->server;
+		struct wlr_surface *focused_surface = server->seat->pointer_state.focused_surface;
+		if (view->xdg_toplevel->base->surface !=
+		    wlr_surface_get_root_surface(focused_surface)) {
+			// Deny move/resize requests from unfocused clients.
+			return;
+		}
+		server->grabbed_view = view;
+		server->cursor_mode = mode;
 
-	if (mode == TINYWL_CURSOR_MOVE) {
-		server->grab_x = server->cursor->x - view->x;
-		server->grab_y = server->cursor->y - view->y;
-	} else {
-		struct wlr_box geo_box;
-		wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &geo_box);
+		if (mode == TINYWL_CURSOR_MOVE) {
+			server->grab_x = server->cursor->x - view->x;
+			server->grab_y = server->cursor->y - view->y;
+		} else {
+			struct wlr_box geo_box;
+			wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &geo_box);
 
-		double border_x =
-		        (view->x + geo_box.x) + ((edges & WLR_EDGE_RIGHT) ? geo_box.width : 0);
-		double border_y =
-		        (view->y + geo_box.y) + ((edges & WLR_EDGE_BOTTOM) ? geo_box.height : 0);
-		server->grab_x = server->cursor->x - border_x;
-		server->grab_y = server->cursor->y - border_y;
+			double border_x = (view->x + geo_box.x) +
+			                  ((edges & WLR_EDGE_RIGHT) ? geo_box.width : 0);
+			double border_y = (view->y + geo_box.y) +
+			                  ((edges & WLR_EDGE_BOTTOM) ? geo_box.height : 0);
+			server->grab_x = server->cursor->x - border_x;
+			server->grab_y = server->cursor->y - border_y;
 
-		server->grab_geobox = geo_box;
-		server->grab_geobox.x += view->x;
-		server->grab_geobox.y += view->y;
+			server->grab_geobox = geo_box;
+			server->grab_geobox.x += view->x;
+			server->grab_geobox.y += view->y;
 
-		server->resize_edges = edges;
+			server->resize_edges = edges;
+		}
 	}
 }
 
@@ -647,8 +653,8 @@ static void server_new_pointer(struct tinywl_server *server, struct wlr_input_de
 			libinput_device_config_scroll_set_natural_scroll_enabled(libinput_device,
 			                                                         0);
 
-		if (libinput_device_config_tap_get_finger_count(
-		            libinput_device)) { // If the device is a trackpad
+		// If the device is a trackpad
+		if (libinput_device_config_tap_get_finger_count(libinput_device)) {
 			libinput_device_config_tap_set_enabled(libinput_device, 1);
 			libinput_device_config_tap_set_drag_enabled(libinput_device, 1);
 			libinput_device_config_tap_set_drag_lock_enabled(libinput_device, 1);
@@ -815,20 +821,43 @@ static void server_cursor_button(struct wl_listener *listener, void *data) {
 	// TODO: add a way to hold alt press and then move/resize clients
 	struct tinywl_server *server = wl_container_of(listener, server, cursor_button);
 	struct wlr_pointer_button_event *event = data;
+	struct wlr_keyboard *keyboard;
+
 	// Notify the client with pointer focus that a button press has occurred
-	wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
 	double sx, sy;
 	struct wlr_surface *surface = NULL;
 	struct tinywl_view *view =
 	        desktop_view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+
 	if (event->state == WLR_BUTTON_RELEASED) {
 		// If you released any buttons, we exit interactive move/resize
 		// mode.
+		wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
 		reset_cursor_mode(server);
+	} else if ((keyboard = wlr_seat_get_keyboard(server->seat)) &&
+	           wlr_keyboard_get_modifiers(keyboard) == WLR_MODIFIER_ALT) {
+		// If we press mouse while you are holding alt then we can start to
+		// move/resize the client the cursor is on
+		switch (event->button) {
+		case BTN_LEFT:
+			begin_interactive(view, TINYWL_CURSOR_MOVE, 0);
+			break;
+		case BTN_RIGHT:
+			begin_interactive(view, TINYWL_CURSOR_RESIZE,
+			                  WLR_EDGE_BOTTOM | WLR_EDGE_RIGHT);
+			break;
+		default:
+			wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
+		}
+		server->ignoreNextAltRelease = true;
 	} else {
 		// Focus that client if the button was _pressed_
+		wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
 		focus_view(view, surface);
 		if (view) {
+			// we set the grabbed view so that when you are holding your cursor
+			// and you move it off the window the window still reveives mouse
+			// events
 			server->grabbed_view = view;
 			server->cursor_mode = TINYWL_CURSOR_PRESSED;
 		}
