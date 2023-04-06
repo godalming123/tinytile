@@ -18,11 +18,13 @@ pacman -S wlroots wayland-protocols
  - Layer shell
  - Idle_inhibitor_v1
  - Drag icon
+ - Lock surface
 ## Implement config options
  - sloppy focus
  - Tiling
  - Changing monitor configurations
  - Use alt + mouse to drag/resize windows
+ - Make new windows launch on the focused monitor rathor then 0, 0
 ## Fix bugs
  - gnome web cannot display websites (note: when installed as system package instead of flatpak it works (however the system package is gtk3 based which may be the reason for this))
  - When a window is closed the next window does not get focused
@@ -32,6 +34,6 @@ pacman -S wlroots wayland-protocols
  - Add configuration for pointers via libinput
  - Changing keymaps
  - Keybindings on release
- - Add fullscreen windows (the current implementation is very naive and untested on multiple monitor setups)
+ - Add fullscreen windows (the current implementation is very naive)
 ## Implement protocols
  - Virtual keyboard (needs testing)
