@@ -6,9 +6,9 @@ A fork of tinywl designed to be a simple base for a tiling WM
 	- wlroots
 	- wayland-protocols
    EG for arch:
-   ```
-pacman -S wlroots wayland-protocols
-   ```
+```
+sudo pacman -S wlroots wayland-protocols
+```
 2. run `meson build`
 3. run `ninja -C build`
 4. run `ninja -C build install`
