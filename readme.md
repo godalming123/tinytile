@@ -23,7 +23,6 @@ sudo pacman -S wlroots wayland-protocols
  - sloppy focus
  - Tiling
  - Changing monitor configurations
- - Switching windows in reverse focus order
  - Make new windows launch on the focused monitor rathor then 0, 0
 ## Fix bugs
  - gnome web cannot display websites (note: when installed as system package instead of flatpak it works (however the system package is gtk3 based which may be the reason for this))
@@ -36,5 +35,6 @@ sudo pacman -S wlroots wayland-protocols
  - Keybindings on release
  - Add fullscreen windows (the current implementation is very naive)
  - Use alt + mouse to drag/resize windows
+ - Switching windows in reverse focus order (Gives wierd behavior)
 ## Implement protocols
  - Virtual keyboard (needs testing)

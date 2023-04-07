@@ -49,7 +49,8 @@ enum tinywl_cursor_mode {
 	TINYWL_CURSOR_PRESSED,
 };
 
-enum { LyrClients, LyrDragIcon, NUM_LAYERS }; // scene layers
+// scene layers
+enum { LyrClients, LyrDragIcon, NUM_LAYERS };
 
 struct tinywl_server {
 	struct wl_display *wl_display;
@@ -143,29 +144,8 @@ static void reset_cursor_mode(struct tinywl_server *server) {
 	server->grabbed_view = NULL;
 }
 
-// static inline struct wlr_output *get_focused_monitor(struct tinywl_server *server) {
-// 	return wlr_output_layout_output_at(server->output_layout, server->cursor->x,
-// 	                                   server->cursor->y);
-// }
-
 static inline struct wlr_output *getMonitorViewIsOn(struct tinywl_view *view) {
 	return wlr_output_layout_output_at(view->server->output_layout, view->x, view->y);
-}
-
-//////////////////////
-// MANAGING CLIENTS //
-//////////////////////
-
-static void killfocused(struct tinywl_server *server) {
-	struct wlr_surface *root_surface = server->seat->keyboard_state.focused_surface;
-	struct wlr_xdg_surface *xdg_surface;
-	if (root_surface && wlr_surface_is_xdg_surface(root_surface) &&
-	    (xdg_surface = wlr_xdg_surface_from_wlr_surface(root_surface))) {
-		// TODO: send cursor events to the surface underneath the cursor after you have
-		// closed the window
-		// TODO: make the previously focused client focus
-		wlr_xdg_toplevel_send_close(xdg_surface->toplevel);
-	}
 }
 
 static struct tinywl_view *desktop_view_at(struct tinywl_server *server, double lx, double ly,
@@ -194,7 +174,6 @@ static struct tinywl_view *desktop_view_at(struct tinywl_server *server, double 
 }
 
 static void focus_view(struct tinywl_view *view, struct wlr_surface *surface) {
-	// This functions changes the focused client
 	if (view == NULL) {
 		return;
 	}
@@ -231,6 +210,68 @@ static void focus_view(struct tinywl_view *view, struct wlr_surface *surface) {
 	}
 }
 
+static void process_motion(struct tinywl_server *server, uint32_t time) {
+	// If their is the possibility of the client underneath the cursor changing EG: you close a
+	// window, then this function should be ran; it considers which window is under the cursor
+	// and then sends the cursor event to that window it also may focus a window if no windows
+	// are currently focused
+	double sx, sy;
+	struct wlr_seat *seat = server->seat;
+	struct wlr_surface *surface = NULL;
+	struct tinywl_view *view =
+	        desktop_view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+	if (!view && !seat->drag && server->cursor_mode != TINYWL_CURSOR_PRESSED) {
+		// If there's no view under the cursor, set the cursor image to
+		// the default. This is what makes the cursor image appear when
+		// you move it around the screen, not over any views.
+		wlr_xcursor_manager_set_cursor_image(server->cursor_mgr, "left_ptr",
+		                                     server->cursor);
+	}
+	if (server->cursor_mode == TINYWL_CURSOR_PRESSED && view != server->grabbed_view) {
+		// Send pointer events to the view which the mouse was pressed on
+		view = server->grabbed_view;
+		sx = server->cursor->x - view->x;
+		sy = server->cursor->y - view->y;
+		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+	} else if (surface) {
+		// Send pointer enter and motion events.
+		//
+		// The enter event gives the surface "pointer focus", which is
+		// distinct from keyboard focus. You get pointer focus by moving
+		// the pointer over a window.
+		//
+		// Note that wlroots will avoid sending duplicate enter/motion
+		// events if the surface has already has pointer focus or if the
+		// client is already aware of the coordinates passed.
+		wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+	} else {
+		// Clear pointer focus so future button events and such are not
+		// sent to the last client to have the cursor over it.
+		wlr_seat_pointer_clear_focus(seat);
+
+		// If there are views that can be focused but aren't, then focus them
+		if (wl_list_length(&server->views) > 0) {
+			struct tinywl_view *next_view =
+			        wl_container_of(server->views.next, next_view, link);
+			focus_view(next_view, next_view->xdg_toplevel->base->surface);
+		}
+	}
+}
+
+//////////////////////
+// MANAGING CLIENTS //
+//////////////////////
+
+static void killfocused(struct tinywl_server *server) {
+	struct wlr_surface *root_surface = server->seat->keyboard_state.focused_surface;
+	struct wlr_xdg_surface *xdg_surface;
+	if (root_surface && wlr_surface_is_xdg_surface(root_surface) &&
+	    (xdg_surface = wlr_xdg_surface_from_wlr_surface(root_surface))) {
+		wlr_xdg_toplevel_send_close(xdg_surface->toplevel);
+	}
+}
+
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	// Called when the surface is mapped, or ready to display on-screen.
 	struct tinywl_view *view = wl_container_of(listener, view, map);
@@ -250,6 +291,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	}
 
 	wl_list_remove(&view->link);
+	process_motion(view->server, 0);
 }
 
 static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
@@ -361,16 +403,6 @@ static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *
 	wlr_xdg_surface_schedule_configure(view->xdg_toplevel->base);
 }
 
-static void request_start_drag(struct wl_listener *listener, void *data) {
-	struct wlr_seat_request_start_drag_event *event = data;
-	struct tinywl_server *server = wl_container_of(listener, server, request_start_drag);
-
-	if (wlr_seat_validate_pointer_grab_serial(server->seat, event->origin, event->serial))
-		wlr_seat_start_pointer_drag(server->seat, event->drag, event->serial);
-	else
-		wlr_data_source_destroy(event->drag->source);
-}
-
 static void server_new_xdg_surface(struct wl_listener *listener, void *data) {
 	// This event is raised when wlr_xdg_shell receives a new xdg surface
 	// from a client, either a toplevel (application window) or popup.
@@ -464,7 +496,7 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 			break;
 		}
 		struct tinywl_view *prev_view =
-		        wl_container_of(server->views.next, prev_view, link);
+		        wl_container_of(server->views.next->next, prev_view, link);
 		focus_view(prev_view, prev_view->xdg_toplevel->base->surface);
 		break;
 	default:
@@ -509,8 +541,7 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 			server->ignoreNextAltRelease = true;
 		}
 		if (modifiers == (WLR_MODIFIER_ALT | WLR_MODIFIER_CTRL)) {
-			// In wlroots we must handle switching virtual terminals
-			// ourselfs
+			// In wlroots we must handle switching virtual terminals ourselves
 			for (unsigned int _ = 0; _ < 12; _++) {
 				if (syms[nsyms - 1] == (XKB_KEY_XF86Switch_VT_1 + _)) {
 					wlr_session_change_vt(
@@ -593,53 +624,6 @@ static void createVirtualKeyboard(struct wl_listener *listener, void *data) {
 ///////////////////////
 // MANAGING POINTERS //
 ///////////////////////
-
-static void process_motion(struct tinywl_server *server, uint32_t time) {
-	// If their is the possibility of the client underneath the cursor changing EG: you close a
-	// window, then this functions should be ran; it considers which window is under the cursor
-	// and then sends the cursor event to that window
-	double sx, sy;
-	struct wlr_seat *seat = server->seat;
-	struct wlr_surface *surface = NULL;
-	struct tinywl_view *view =
-	        desktop_view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-	struct wlr_drag_icon *icon;
-	if (seat->drag && (icon = seat->drag->icon))
-		// Update drag icons position if any
-		// wlr_scene_node_set_position(icon->data, server->cursor->x, server->cursor->y);
-		wlr_scene_node_set_position(icon->data, server->cursor->x + icon->surface->sx,
-		                            server->cursor->y + icon->surface->sy);
-	if (!view && !seat->drag && server->cursor_mode != TINYWL_CURSOR_PRESSED) {
-		// If there's no view under the cursor, set the cursor image to
-		// a default. This is what makes the cursor image appear when
-		// you move it around the screen, not over any views.
-		wlr_xcursor_manager_set_cursor_image(server->cursor_mgr, "left_ptr",
-		                                     server->cursor);
-	}
-	if (server->cursor_mode == TINYWL_CURSOR_PRESSED && view != server->grabbed_view) {
-		// Send pointer events to the view which the mouse was pressed on
-		view = server->grabbed_view;
-		sx = server->cursor->x - view->x;
-		sy = server->cursor->y - view->y;
-		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-	} else if (surface) {
-		// Send pointer enter and motion events.
-		//
-		// The enter event gives the surface "pointer focus", which is
-		// distinct from keyboard focus. You get pointer focus by moving
-		// the pointer over a window.
-		//
-		// Note that wlroots will avoid sending duplicate enter/motion
-		// events if the surface has already has pointer focus or if the
-		// client is already aware of the coordinates passed.
-		wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
-		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-	} else {
-		// Clear pointer focus so future button events and such are not
-		// sent to the last client to have the cursor over it.
-		wlr_seat_pointer_clear_focus(seat);
-	}
-}
 
 static void server_new_pointer(struct tinywl_server *server, struct wlr_input_device *device) {
 	// We don't do anything special with pointers. All of our pointer
@@ -784,7 +768,15 @@ static void process_cursor_motion(struct tinywl_server *server, uint32_t time) {
 		return;
 	}
 
-	// Otherwise, find the view under the pointer and send the event along.
+	// Update drag icons position if any
+	struct wlr_drag_icon *icon;
+	if (server->seat->drag && (icon = server->seat->drag->icon))
+		wlr_scene_node_set_position(icon->data, server->cursor->x + icon->surface->sx,
+		                            server->cursor->y + icon->surface->sy);
+
+	// Otherwise, find the view under the pointer and send the event along. This code has been
+	// seperated into a function because it can be called when for example the pointerfocused
+	// client in unmapped
 	process_motion(server, time);
 }
 
@@ -793,12 +785,14 @@ static void server_cursor_motion(struct wl_listener *listener, void *data) {
 	// _relative_ pointer motion event (i.e. a delta)
 	struct tinywl_server *server = wl_container_of(listener, server, cursor_motion);
 	struct wlr_pointer_motion_event *event = data;
+
 	// The cursor doesn't move unless we tell it to. The cursor
 	// automatically handles constraining the motion to the output layout,
 	// as well as any special configuration applied for the specific input
 	// device which generated the event. You can pass NULL for the device if
 	// you want to move the cursor around without any input.
 	wlr_cursor_move(server->cursor, &event->pointer->base, event->delta_x, event->delta_y);
+
 	process_cursor_motion(server, event->time_msec);
 }
 
@@ -816,51 +810,46 @@ static void server_cursor_motion_absolute(struct wl_listener *listener, void *da
 }
 
 static void server_cursor_button(struct wl_listener *listener, void *data) {
-	// This event is forwarded by the cursor when a pointer emits a button
-	// event.
-	// TODO: add a way to hold alt press and then move/resize clients
+	// This event is forwarded by the cursor when a pointer emits a button event.
 	struct tinywl_server *server = wl_container_of(listener, server, cursor_button);
 	struct wlr_pointer_button_event *event = data;
-	struct wlr_keyboard *keyboard;
-
-	// Notify the client with pointer focus that a button press has occurred
 	double sx, sy;
 	struct wlr_surface *surface = NULL;
 	struct tinywl_view *view =
 	        desktop_view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 
+	if (event->state == WLR_BUTTON_PRESSED) {
+		focus_view(view, surface);
+
+		// If you are pressing alt while you press mouse buttons
+		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(server->seat);
+		if (keyboard && wlr_keyboard_get_modifiers(keyboard) == WLR_MODIFIER_ALT) {
+			// Then we can start to move/resize the client the cursor is on
+			server->ignoreNextAltRelease = true;
+			switch (event->button) {
+			case BTN_LEFT:
+				begin_interactive(view, TINYWL_CURSOR_MOVE, 0);
+				return;
+			case BTN_RIGHT:
+				begin_interactive(view, TINYWL_CURSOR_RESIZE,
+				                  WLR_EDGE_BOTTOM | WLR_EDGE_RIGHT);
+				return;
+			}
+		}
+	}
+
+	wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
+
 	if (event->state == WLR_BUTTON_RELEASED) {
 		// If you released any buttons, we exit interactive move/resize
 		// mode.
-		wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
 		reset_cursor_mode(server);
-	} else if ((keyboard = wlr_seat_get_keyboard(server->seat)) &&
-	           wlr_keyboard_get_modifiers(keyboard) == WLR_MODIFIER_ALT) {
-		// If we press mouse while you are holding alt then we can start to
-		// move/resize the client the cursor is on
-		switch (event->button) {
-		case BTN_LEFT:
-			begin_interactive(view, TINYWL_CURSOR_MOVE, 0);
-			break;
-		case BTN_RIGHT:
-			begin_interactive(view, TINYWL_CURSOR_RESIZE,
-			                  WLR_EDGE_BOTTOM | WLR_EDGE_RIGHT);
-			break;
-		default:
-			wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
-		}
-		server->ignoreNextAltRelease = true;
-	} else {
-		// Focus that client if the button was _pressed_
-		wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
-		focus_view(view, surface);
-		if (view) {
-			// we set the grabbed view so that when you are holding your cursor
-			// and you move it off the window the window still reveives mouse
-			// events
-			server->grabbed_view = view;
-			server->cursor_mode = TINYWL_CURSOR_PRESSED;
-		}
+	} else if (view) {
+		// we set the grabbed view so that when you are holding your cursor
+		// and you move it off the window the window still reveives mouse
+		// events
+		server->grabbed_view = view;
+		server->cursor_mode = TINYWL_CURSOR_PRESSED;
 	}
 }
 
@@ -1006,6 +995,16 @@ static void seat_request_set_selection(struct wl_listener *listener, void *data)
 static void destroyDragIcon(struct wl_listener *listener, void *data) {
 	struct wlr_drag_icon *icon = data;
 	wlr_scene_node_destroy(icon->data);
+}
+
+static void request_start_drag(struct wl_listener *listener, void *data) {
+	struct wlr_seat_request_start_drag_event *event = data;
+	struct tinywl_server *server = wl_container_of(listener, server, request_start_drag);
+
+	if (wlr_seat_validate_pointer_grab_serial(server->seat, event->origin, event->serial))
+		wlr_seat_start_pointer_drag(server->seat, event->drag, event->serial);
+	else
+		wlr_data_source_destroy(event->drag->source);
 }
 
 void seat_start_drag(struct wl_listener *listener, void *data) {
