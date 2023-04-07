@@ -213,8 +213,7 @@ static void focus_view(struct tinywl_view *view, struct wlr_surface *surface) {
 static void process_motion(struct tinywl_server *server, uint32_t time) {
 	// If their is the possibility of the client underneath the cursor changing EG: you close a
 	// window, then this function should be ran; it considers which window is under the cursor
-	// and then sends the cursor event to that window it also may focus a window if no windows
-	// are currently focused
+	// and then sends the cursor event to that window
 	double sx, sy;
 	struct wlr_seat *seat = server->seat;
 	struct wlr_surface *surface = NULL;
@@ -249,13 +248,6 @@ static void process_motion(struct tinywl_server *server, uint32_t time) {
 		// Clear pointer focus so future button events and such are not
 		// sent to the last client to have the cursor over it.
 		wlr_seat_pointer_clear_focus(seat);
-
-		// If there are views that can be focused but aren't, then focus them
-		if (wl_list_length(&server->views) > 0) {
-			struct tinywl_view *next_view =
-			        wl_container_of(server->views.next, next_view, link);
-			focus_view(next_view, next_view->xdg_toplevel->base->surface);
-		}
 	}
 }
 
@@ -292,6 +284,13 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 
 	wl_list_remove(&view->link);
 	process_motion(view->server, 0);
+
+	// If there are views that can be focused but aren't, then focus them
+	if (wl_list_length(&view->server->views) > 0) {
+		struct tinywl_view *next_view =
+		        wl_container_of(view->server->views.next, next_view, link);
+		focus_view(next_view, next_view->xdg_toplevel->base->surface);
+	}
 }
 
 static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
