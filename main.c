@@ -1227,6 +1227,13 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
+	// If we do not set the cursor position before making it appear then it will be at (0, 0)
+	// and then jump to (100, 100) when the user moves the mouse
+	wlr_cursor_warp_closest(server.cursor, NULL, server.cursor->x, server.cursor->y);
+
+	// Make the cursor appear on screen without needing to be moved
+	wlr_xcursor_manager_set_cursor_image(server.cursor_mgr, "left_ptr", server.cursor);
+
 	// Set the WAYLAND_DISPLAY environment variable to our socket
 	setenv("WAYLAND_DISPLAY", socket, true);
 
