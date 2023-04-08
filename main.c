@@ -133,8 +133,7 @@ struct tinywl_keyboard {
 static void run(char *cmdTxt) {
 	// Simply runs a command in a forked process
 	if (fork() == 0) {
-		system(cmdTxt);
-		exit(EXIT_SUCCESS);
+		exit(system(cmdTxt));
 	}
 }
 
@@ -267,6 +266,20 @@ static void killfocused(struct tinywl_server *server) {
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	// Called when the surface is mapped, or ready to display on-screen.
 	struct tinywl_view *view = wl_container_of(listener, view, map);
+
+	if (view->xdg_toplevel->parent) {
+		// If the view has a parent then get the size of it and its parent and use that
+		// information to position it
+		struct wlr_box parent_box;
+		wlr_xdg_surface_get_geometry(view->xdg_toplevel->parent->base, &parent_box);
+
+		struct wlr_box popup_box;
+		wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &popup_box);
+
+		view->x = (parent_box.width - popup_box.width) / 2;
+		view->y = (parent_box.height - popup_box.height) / 2;
+		wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
+	}
 
 	wl_list_insert(&view->server->views, &view->link);
 
@@ -426,8 +439,15 @@ static void server_new_xdg_surface(struct wl_listener *listener, void *data) {
 	struct tinywl_view *view = calloc(1, sizeof(struct tinywl_view));
 	view->server = server;
 	view->xdg_toplevel = xdg_surface->toplevel;
-	view->scene_tree =
-	        wlr_scene_xdg_surface_create(&view->server->scene->tree, view->xdg_toplevel->base);
+
+	if (view->xdg_toplevel->parent != 0)
+		// if the view is a popup then create it as part of its parent
+		view->scene_tree = wlr_scene_xdg_surface_create(
+		        view->xdg_toplevel->parent->base->data, view->xdg_toplevel->base);
+	else
+		// otherwise create it as part of the typical scene tree
+		view->scene_tree = wlr_scene_xdg_surface_create(&view->server->scene->tree,
+		                                                view->xdg_toplevel->base);
 	view->scene_tree->node.data = view;
 	xdg_surface->data = view->scene_tree;
 
@@ -497,6 +517,12 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		struct tinywl_view *prev_view =
 		        wl_container_of(server->views.next->next, prev_view, link);
 		focus_view(prev_view, prev_view->xdg_toplevel->base->surface);
+		break;
+	case XKB_KEY_n:
+		run("nautilus");
+		break;
+	case XKB_KEY_f:
+		run("firefox");
 		break;
 	default:
 		return false;
