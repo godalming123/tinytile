@@ -6,11 +6,11 @@ A fork of tinywl designed to be a simple base for a tiling WM (but currently we 
 	- wlroots
 	- wayland-protocols
 	- meson
-   EG for arch:
+EG for arch:
 ```
 sudo pacman -S wlroots wayland-protocols meson
 ```
-   Or for fedora:
+Or for fedora:
 ```
 sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
 ```
