@@ -43,10 +43,10 @@ sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
  - Changing monitor configurations
  - Make new windows launch on the focused monitor rathor then 0, 0
 ## Fix bugs
- - Gnome web cannot display websites (note: when installed as system package instead of flatpak it works (however the system package is gtk3 based which may be the reason for this))
- - Drag icon protocol randomly crashes the compistor when your mouse is not hovering a surface
+ - Gnome web cannot display websites - note: when installed as system package instead of flatpak it works (however the system package is gtk3 based which may be the reason for this)
+ - Drag icon protocol randomly crashes the compositor when your mouse is not hovering a surface
  - Switching windows in reverse focus order gives wierd behavior
- - When dragging popup windows it should drag the parent instead
+ - When resizing a client with a popup/parent it should keep the popup centered to the parent
 # Done
  - Add a way to close windows with the keyboard
  - Allow switching virtual terminals
@@ -56,5 +56,6 @@ sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
  - Add fullscreen windows (the current implementation is very naive)
  - Use alt + mouse to drag/resize windows
  - When a window is closed the next window does not get focused
+ - When dragging popup windows it should drag the parent instead
 ## Implement protocols
  - Virtual keyboard (needs testing)

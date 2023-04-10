@@ -147,6 +147,22 @@ static inline struct wlr_output *getMonitorViewIsOn(struct tinywl_view *view) {
 	return wlr_output_layout_output_at(view->server->output_layout, view->x, view->y);
 }
 
+struct tinywl_view *getPopupViewFromParent(struct tinywl_view *parent_view) {
+	struct tinywl_view *popup_view;
+	wl_list_for_each (popup_view, &parent_view->server->views, link)
+		if (popup_view->xdg_toplevel->parent == parent_view->xdg_toplevel)
+			return popup_view;
+	return NULL;
+}
+
+struct tinywl_view *getParentViewFromPopup(struct tinywl_view *popup_view) {
+	struct tinywl_view *parent_view;
+	wl_list_for_each (parent_view, &popup_view->server->views, link)
+		if (popup_view->xdg_toplevel->parent == parent_view->xdg_toplevel)
+			return parent_view;
+	return NULL;
+}
+
 static struct tinywl_view *desktop_view_at(struct tinywl_server *server, double lx, double ly,
                                            struct wlr_surface **surface, double *sx, double *sy) {
 	// This returns the topmost node in the scene at the given layout
@@ -172,14 +188,22 @@ static struct tinywl_view *desktop_view_at(struct tinywl_server *server, double 
 	return tree->node.data;
 }
 
-static void focus_view(struct tinywl_view *view, struct wlr_surface *surface) {
+static void focus_view(struct tinywl_view *view) {
 	if (view == NULL) {
 		return;
 	}
 	struct tinywl_server *server = view->server;
 	struct wlr_seat *seat = server->seat;
 	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
-	if (prev_surface == surface) {
+
+	// Set parent view and view
+	struct tinywl_view *parent_view = view;
+	if (!(view = getPopupViewFromParent(view)))
+		view = parent_view;
+	if (view->xdg_toplevel->parent)
+		parent_view = getParentViewFromPopup(view);
+
+	if (prev_surface == view->xdg_toplevel->base->surface) {
 		// Don't re-focus an already focused surface.
 		return;
 	}
@@ -193,12 +217,15 @@ static void focus_view(struct tinywl_view *view, struct wlr_surface *surface) {
 		wlr_xdg_toplevel_set_activated(previous->toplevel, false);
 	}
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+
 	// Move the view to the front
-	wlr_scene_node_raise_to_top(&view->scene_tree->node);
+	wlr_scene_node_raise_to_top(&parent_view->scene_tree->node);
 	wl_list_remove(&view->link);
 	wl_list_insert(&server->views, &view->link);
+
 	// Activate the new surface
 	wlr_xdg_toplevel_set_activated(view->xdg_toplevel, true);
+
 	// Tell the seat to have the keyboard enter this surface. wlroots will
 	// keep track of this and automatically send key events to the
 	// appropriate clients without additional work on your part.
@@ -212,7 +239,8 @@ static void focus_view(struct tinywl_view *view, struct wlr_surface *surface) {
 static void process_motion(struct tinywl_server *server, uint32_t time) {
 	// If their is the possibility of the client underneath the cursor changing EG: you close a
 	// window, then this function should be ran; it considers which window is under the cursor
-	// and then sends the cursor event to that window
+	// and then sends the cursor event to that window and if no windows are under the cursor it
+	// resets the cursor image.
 	double sx, sy;
 	struct wlr_seat *seat = server->seat;
 	struct wlr_surface *surface = NULL;
@@ -255,6 +283,7 @@ static void process_motion(struct tinywl_server *server, uint32_t time) {
 //////////////////////
 
 static void killfocused(struct tinywl_server *server) {
+	// Note that this kills the client that has keyboard focus rathor then pointer focus
 	struct wlr_surface *root_surface = server->seat->keyboard_state.focused_surface;
 	struct wlr_xdg_surface *xdg_surface;
 	if (root_surface && wlr_surface_is_xdg_surface(root_surface) &&
@@ -283,7 +312,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 
 	wl_list_insert(&view->server->views, &view->link);
 
-	focus_view(view, view->xdg_toplevel->base->surface);
+	focus_view(view);
 }
 
 static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
@@ -302,7 +331,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	if (wl_list_length(&view->server->views) > 0) {
 		struct tinywl_view *next_view =
 		        wl_container_of(view->server->views.next, next_view, link);
-		focus_view(next_view, next_view->xdg_toplevel->base->surface);
+		focus_view(next_view);
 	}
 }
 
@@ -331,9 +360,14 @@ static void begin_interactive(struct tinywl_view *view, enum tinywl_cursor_mode 
 		struct wlr_surface *focused_surface = server->seat->pointer_state.focused_surface;
 		if (view->xdg_toplevel->base->surface !=
 		    wlr_surface_get_root_surface(focused_surface)) {
-			// Deny move/resize requests from unfocused clients.
+			// Deny move/resize requests from clients without pointer focus
 			return;
 		}
+
+		if (mode == TINYWL_CURSOR_MOVE && view->xdg_toplevel->parent)
+			// If we are moving a popup then instead move the parent
+			view = getParentViewFromPopup(view);
+
 		server->grabbed_view = view;
 		server->cursor_mode = mode;
 
@@ -408,7 +442,8 @@ static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *
 		wlr_xdg_toplevel_set_fullscreen(view->xdg_toplevel, 1);
 	} else {
 		wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
-		wlr_xdg_toplevel_set_size(view->xdg_toplevel, 900, 700);
+		wlr_xdg_toplevel_set_size(view->xdg_toplevel, 900,
+		                          700); // TODO: save the previous size and restore that
 		wlr_xdg_toplevel_set_fullscreen(view->xdg_toplevel, 0);
 	}
 
@@ -507,16 +542,16 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		}
 		struct tinywl_view *next_view =
 		        wl_container_of(server->views.prev, next_view, link);
-		focus_view(next_view, next_view->xdg_toplevel->base->surface);
+		focus_view(next_view);
 		break;
 	case XKB_KEY_a:
-		// Cycle to the previous view (TODO: does not work)
+		// Cycle to the previous view (TODO: does not work reliably)
 		if (wl_list_length(&server->views) < 2) {
 			break;
 		}
 		struct tinywl_view *prev_view =
 		        wl_container_of(server->views.next->next, prev_view, link);
-		focus_view(prev_view, prev_view->xdg_toplevel->base->surface);
+		focus_view(prev_view);
 		break;
 	case XKB_KEY_n:
 		run("nautilus");
@@ -615,7 +650,7 @@ static void server_new_keyboard(struct tinywl_server *server, struct wlr_input_d
 	keyboard->wlr_keyboard = wlr_keyboard;
 
 	// We need to prepare an XKB keymap and assign it to the keyboard. This
-	// assumes the defaults (e.g. layout = "us").
+	// assumes a UK layout.
 	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 	struct xkb_keymap *keymap = xkb_keymap_new_from_names(
 	        context, &(struct xkb_rule_names){.layout = "gb", .options = ""},
@@ -708,17 +743,15 @@ static void server_new_pointer(struct tinywl_server *server, struct wlr_input_de
 
 static void seat_request_cursor(struct wl_listener *listener, void *data) {
 	struct tinywl_server *server = wl_container_of(listener, server, request_cursor);
-	// This event is raised by the seat when a client provides a cursor
-	// image
+	// This event is raised by the seat when a client provides a cursor image
 	struct wlr_seat_pointer_request_set_cursor_event *event = data;
 	struct wlr_seat_client *focused_client = server->seat->pointer_state.focused_client;
 	// This can be sent by any client, so we check to make sure this one is
 	// actually has pointer focus first.
 	if (focused_client == event->seat_client) {
-		// Once we've vetted the client, we can tell the cursor to use
-		// the provided surface as the cursor image. It will set the
-		// hardware cursor on the output that it's currently on and
-		// continue to do so as the cursor moves between outputs.
+		// Once we've vetted the client, we can tell the cursor to use the provided surface
+		// as the cursor image. It will set the hardware cursor on the output that it's
+		// currently on and continue to do so as the cursor moves between outputs.
 		wlr_cursor_set_surface(server->cursor, event->surface, event->hotspot_x,
 		                       event->hotspot_y);
 	}
@@ -844,7 +877,7 @@ static void server_cursor_button(struct wl_listener *listener, void *data) {
 	        desktop_view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 
 	if (event->state == WLR_BUTTON_PRESSED) {
-		focus_view(view, surface);
+		focus_view(view);
 
 		// If you are pressing alt while you press mouse buttons
 		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(server->seat);
