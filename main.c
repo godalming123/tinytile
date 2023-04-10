@@ -481,7 +481,7 @@ static void server_new_xdg_surface(struct wl_listener *listener, void *data) {
 		        view->xdg_toplevel->parent->base->data, view->xdg_toplevel->base);
 	else
 		// otherwise create it as part of the typical scene tree
-		view->scene_tree = wlr_scene_xdg_surface_create(&view->server->scene->tree,
+		view->scene_tree = wlr_scene_xdg_surface_create(server->layers[LyrClients],
 		                                                view->xdg_toplevel->base);
 	view->scene_tree->node.data = view;
 	xdg_surface->data = view->scene_tree;
@@ -619,7 +619,22 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 		// if the alt modifier is being held and you release it
 		if (modifiers == WLR_MODIFIER_ALT && syms[0] == 65513) {
 			if (!server->ignoreNextAltRelease)
-				run("alacritty -e neofetch");
+				run("alacritty -e bash -c \""
+				    "echo === INSTRUCTIONS OF USE ===;"
+				    "echo 'Keybindings:';"
+				    "echo ' - ALt + escape - exit this compositor';"
+				    "echo ' - Alt + q      - close focused window';"
+				    "echo ' - Alt + enter  - open a terminal';"
+				    "echo ' - Alt + x      - sleep your system';"
+				    "echo ' - Alt + d/a    - go to previous/next window';"
+				    "echo ' - Alt + n      - open nautilus';"
+				    "echo ' - Alt + f      - open firefox';"
+				    "echo 'Other behaviours:';"
+				    "echo ' - You can press alt and then tap and hold on a window "
+				    "with left click to drag it or right click to resize it';"
+				    "echo ' - At any time you can just press alt to see this help "
+				    "message now that you are inside the compositor';"
+				    "read -p 'press enter to continue...'\"");
 			server->ignoreNextAltRelease = false;
 			return;
 		}
@@ -1088,13 +1103,13 @@ int main(int argc, char *argv[]) {
 
 	for (int _ = 1; _ < argc; _++) {
 		if (!strcmp(argv[_], "about")) {
-			fprintf(stderr, "Godalming123's DWL dotfiles based on "
-			                "DWL 0.4\n");
-			exit(EXIT_FAILURE);
+			fprintf(stderr, "A fork of tinywl with some additional features based on wlroots 0.16\n");
 		} else {
-			fprintf(stderr, "Use the `about` command to see info");
-			exit(EXIT_FAILURE);
+			fprintf(stderr,
+			        "%s is not a valid option, use the `about` command to see info\n",
+			        argv[_]);
 		}
+		exit(EXIT_SUCCESS); // exit after passing the first arg
 	}
 
 	struct tinywl_server server;

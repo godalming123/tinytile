@@ -21,7 +21,7 @@ sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
 
 # Usage
 ## Default keybindings
- - **Alt + escape** - exit tinytile
+ - **Alt + escape** - exit this compositor
  - **Alt + q** - close focused window
  - **Alt + enter** - Open alacritty (a terminal emulator)
  - **Alt + x** - sleep your system using systemctl
@@ -29,8 +29,8 @@ sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
  - **Alt + n** - open nautilus
  - **Alt + f** - open firefox
 ## Other behaviours
- - You can press alt and then tap on a window with left click to drag it or tap on the window with right click to resize it
- - If you accidentally just press alt and release it and some text shows and then hides thats neofetch running in alacritty
+ - You can press alt and then tap and hold on a window with left click to drag it or right click to resize it
+ - At any time you can just press alt to see this help message ounce in the compositor
 
 # Todo
 ## Implement protocols
