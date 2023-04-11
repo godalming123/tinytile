@@ -537,21 +537,19 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		break;
 	case XKB_KEY_d:
 		// Cycle to the next view
-		if (wl_list_length(&server->views) < 2) {
-			break;
+		if (wl_list_length(&server->views) > 1) {
+			struct tinywl_view *next_view =
+			        wl_container_of(server->views.prev, next_view, link);
+			focus_view(next_view);
 		}
-		struct tinywl_view *next_view =
-		        wl_container_of(server->views.prev, next_view, link);
-		focus_view(next_view);
 		break;
 	case XKB_KEY_a:
 		// Cycle to the previous view (TODO: does not work reliably)
-		if (wl_list_length(&server->views) < 2) {
-			break;
+		if (wl_list_length(&server->views) > 1) {
+			struct tinywl_view *prev_view =
+			        wl_container_of(server->views.next->next, prev_view, link);
+			focus_view(prev_view);
 		}
-		struct tinywl_view *prev_view =
-		        wl_container_of(server->views.next->next, prev_view, link);
-		focus_view(prev_view);
 		break;
 	case XKB_KEY_n:
 		run("nautilus");
@@ -1103,7 +1101,8 @@ int main(int argc, char *argv[]) {
 
 	for (int _ = 1; _ < argc; _++) {
 		if (!strcmp(argv[_], "about")) {
-			fprintf(stderr, "A fork of tinywl with some additional features based on wlroots 0.16\n");
+			fprintf(stderr, "A fork of tinywl with some additional features based on "
+			                "wlroots 0.16\n");
 		} else {
 			fprintf(stderr,
 			        "%s is not a valid option, use the `about` command to see info\n",
