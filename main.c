@@ -152,7 +152,7 @@ struct tinywl_view *getPopupViewFromParent(struct tinywl_view *parent_view) {
 	wl_list_for_each (popup_view, &parent_view->server->views, link)
 		if (popup_view->xdg_toplevel->parent == parent_view->xdg_toplevel)
 			return popup_view;
-	return NULL;
+	return parent_view;
 }
 
 struct tinywl_view *getParentViewFromPopup(struct tinywl_view *popup_view) {
@@ -188,51 +188,48 @@ static struct tinywl_view *desktop_view_at(struct tinywl_server *server, double 
 	return tree->node.data;
 }
 
-static void focus_view(struct tinywl_view *view) {
-	if (view == NULL) {
-		return;
-	}
-	struct tinywl_server *server = view->server;
-	struct wlr_seat *seat = server->seat;
-	struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
+static void focus_view(struct tinywl_view *parent_view) {
+	if (parent_view) {
+		struct tinywl_server *server = parent_view->server;
+		struct wlr_seat *seat = server->seat;
+		struct wlr_surface *prev_surface = seat->keyboard_state.focused_surface;
 
-	// Set parent view and view
-	struct tinywl_view *parent_view = view;
-	if (!(view = getPopupViewFromParent(view)))
-		view = parent_view;
-	if (view->xdg_toplevel->parent)
-		parent_view = getParentViewFromPopup(view);
+		// Set parent view and view
+		struct tinywl_view *view = getPopupViewFromParent(parent_view);
+		if (parent_view->xdg_toplevel->parent)
+			parent_view = getParentViewFromPopup(view);
 
-	if (prev_surface == view->xdg_toplevel->base->surface) {
-		// Don't re-focus an already focused surface.
-		return;
-	}
-	if (prev_surface) {
-		// Deactivate the previously focused surface. This lets the
-		// client know it no longer has focus and the client will
-		// repaint accordingly, e.g. stop displaying a caret.
-		struct wlr_xdg_surface *previous =
-		        wlr_xdg_surface_from_wlr_surface(seat->keyboard_state.focused_surface);
-		assert(previous->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL);
-		wlr_xdg_toplevel_set_activated(previous->toplevel, false);
-	}
-	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+		if (prev_surface == view->xdg_toplevel->base->surface) {
+			// Don't re-focus an already focused surface.
+			return;
+		}
+		if (prev_surface) {
+			// Deactivate the previously focused surface. This lets the
+			// client know it no longer has focus and the client will
+			// repaint accordingly, e.g. stop displaying a caret.
+			struct wlr_xdg_surface *previous = wlr_xdg_surface_from_wlr_surface(
+			        seat->keyboard_state.focused_surface);
+			assert(previous->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL);
+			wlr_xdg_toplevel_set_activated(previous->toplevel, false);
+		}
+		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
 
-	// Move the view to the front
-	wlr_scene_node_raise_to_top(&parent_view->scene_tree->node);
-	wl_list_remove(&view->link);
-	wl_list_insert(&server->views, &view->link);
+		// Move the view to the front
+		wlr_scene_node_raise_to_top(&parent_view->scene_tree->node);
+		wl_list_remove(&view->link);
+		wl_list_insert(&server->views, &view->link);
 
-	// Activate the new surface
-	wlr_xdg_toplevel_set_activated(view->xdg_toplevel, true);
+		// Activate the new surface
+		wlr_xdg_toplevel_set_activated(view->xdg_toplevel, true);
 
-	// Tell the seat to have the keyboard enter this surface. wlroots will
-	// keep track of this and automatically send key events to the
-	// appropriate clients without additional work on your part.
-	if (keyboard != NULL) {
-		wlr_seat_keyboard_notify_enter(seat, view->xdg_toplevel->base->surface,
-		                               keyboard->keycodes, keyboard->num_keycodes,
-		                               &keyboard->modifiers);
+		// Tell the seat to have the keyboard enter this surface. wlroots will
+		// keep track of this and automatically send key events to the
+		// appropriate clients without additional work on your part.
+		if (keyboard != NULL) {
+			wlr_seat_keyboard_notify_enter(seat, view->xdg_toplevel->base->surface,
+			                               keyboard->keycodes, keyboard->num_keycodes,
+			                               &keyboard->modifiers);
+		}
 	}
 }
 
@@ -253,7 +250,7 @@ static void process_motion(struct tinywl_server *server, uint32_t time) {
 		wlr_xcursor_manager_set_cursor_image(server->cursor_mgr, "left_ptr",
 		                                     server->cursor);
 	}
-	if (server->cursor_mode == TINYWL_CURSOR_PRESSED && view != server->grabbed_view) {
+	if (server->cursor_mode == TINYWL_CURSOR_PRESSED && !seat->drag) {
 		// Send pointer events to the view which the mouse was pressed on
 		view = server->grabbed_view;
 		sx = server->cursor->x - view->x;
@@ -557,6 +554,9 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	case XKB_KEY_f:
 		run("firefox");
 		break;
+	case XKB_KEY_w:
+		run("flatpak run org.gnome.Epiphany");
+		break;
 	default:
 		return false;
 	}
@@ -829,6 +829,13 @@ static void process_cursor_resize(struct tinywl_server *server, uint32_t time) {
 	wlr_xdg_toplevel_set_size(view->xdg_toplevel, new_width, new_height);
 }
 
+static void update_drag_icon_position(struct tinywl_server *server) {
+	struct wlr_drag_icon *icon;
+	if (server->seat->drag && (icon = server->seat->drag->icon))
+		wlr_scene_node_set_position(icon->data, server->cursor->x + icon->surface->sx,
+		                            server->cursor->y + icon->surface->sy);
+}
+
 static void process_cursor_motion(struct tinywl_server *server, uint32_t time) {
 	// If the mode is non-passthrough, delegate to those functions.
 	if (server->cursor_mode == TINYWL_CURSOR_MOVE) {
@@ -840,14 +847,11 @@ static void process_cursor_motion(struct tinywl_server *server, uint32_t time) {
 	}
 
 	// Update drag icons position if any
-	struct wlr_drag_icon *icon;
-	if (server->seat->drag && (icon = server->seat->drag->icon))
-		wlr_scene_node_set_position(icon->data, server->cursor->x + icon->surface->sx,
-		                            server->cursor->y + icon->surface->sy);
+	update_drag_icon_position(server);
 
 	// Otherwise, find the view under the pointer and send the event along. This code has been
-	// seperated into a function because it can be called when for example the pointerfocused
-	// client in unmapped
+	// this code is seperated into a function because it can be called when for example the
+	// pointerfocused client in unmapped
 	process_motion(server, time);
 }
 
@@ -1086,8 +1090,8 @@ void seat_start_drag(struct wl_listener *listener, void *data) {
 		return;
 
 	drag->icon->data =
-	        wlr_scene_subsurface_tree_create(server->layers[LyrClients], drag->icon->surface);
-
+	        wlr_scene_subsurface_tree_create(server->layers[LyrDragIcon], drag->icon->surface);
+	update_drag_icon_position(server);
 	static struct wl_listener drag_icon_destroy = {.notify = destroyDragIcon};
 	wl_signal_add(&drag->icon->events.destroy, &drag_icon_destroy);
 }

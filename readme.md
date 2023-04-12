@@ -47,6 +47,7 @@ sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
  - Drag icon protocol randomly crashes the compositor when your mouse is not hovering a surface
  - Switching windows in reverse focus order gives wierd behavior
  - When resizing a client with a popup/parent it should keep the popup centered to the parent
+ - Sometimes subsurfaces can go offscreen
 # Done
  - Add a way to close windows with the keyboard
  - Allow switching virtual terminals
@@ -57,5 +58,6 @@ sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
  - Use alt + mouse to drag/resize windows
  - When a window is closed the next window does not get focused
  - When dragging popup windows it should drag the parent instead
+ - Use libinput to configure pointers
 ## Implement protocols
  - Virtual keyboard (needs testing)
