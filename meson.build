@@ -40,6 +40,7 @@ wayland_protos = dependency('wayland-protocols', version: '>=1.14')
 wayland_server = dependency('wayland-server')
 xkbcommon      = dependency('xkbcommon')
 libinput       = dependency('libinput')
+pangocairo     = dependency('pangocairo')
 
 wl_protocol_dir = wayland_protos.get_variable('pkgdatadir')
 wayland_scanner = find_program('wayland-scanner')
@@ -68,13 +69,14 @@ conf_data = configuration_data()
 
 executable(
   meson.project_name(),
-  'main.c',
+  ['main.c', 'popup_message.h'],
   dependencies: [
     wlroots,
     server_protos,
     wayland_server,
     xkbcommon,
     libinput,
+    pangocairo,
   ],
   install: true,
 )

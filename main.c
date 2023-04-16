@@ -1,41 +1,19 @@
 #define _POSIX_C_SOURCE 200112L
 
 #include <assert.h>
-#include <getopt.h>
-#include <libinput.h>
 #include <linux/input-event-codes.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <unistd.h>
-#include <wayland-server-core.h>
-#include <wayland-server-protocol.h>
-#include <wayland-util.h>
-#include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
-#include <wlr/types/wlr_compositor.h>
-#include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
-#include <wlr/types/wlr_input_device.h>
-#include <wlr/types/wlr_keyboard.h>
-#include <wlr/types/wlr_output.h>
-#include <wlr/types/wlr_output_layout.h>
-#include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_scene.h>
-#include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_shell.h>
-#include <wlr/util/edges.h>
 #include <wlr/util/log.h>
-#include <xdg-shell-protocol.h>
-#include <xkbcommon/xkbcommon-keysyms.h>
-#include <xkbcommon/xkbcommon.h>
 
 ///////////////////////
 // STRUCTS AND ENUMS //
@@ -50,7 +28,12 @@ enum tinywl_cursor_mode {
 };
 
 // scene layers
-enum { LyrClients, LyrDragIcon, NUM_LAYERS };
+enum { LyrClients, LyrMessage, LyrDragIcon, NUM_LAYERS };
+
+struct tinywl_message {
+	struct wlr_scene_buffer *message;
+	struct wl_surface *surface;
+};
 
 struct tinywl_server {
 	struct wl_display *wl_display;
@@ -61,6 +44,7 @@ struct tinywl_server {
 	struct wlr_scene_tree *layers[NUM_LAYERS];
 
 	bool ignoreNextAltRelease;
+	struct tinywl_message *message;
 
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_surface;
@@ -126,6 +110,9 @@ struct tinywl_keyboard {
 	struct wl_listener destroy;
 };
 
+// Allow this file to access above code
+#include <popup_message.h>
+
 //////////////////////
 // HELPER FUNCTIONS //
 //////////////////////
@@ -188,6 +175,48 @@ static struct tinywl_view *desktop_view_at(struct tinywl_server *server, double 
 	return tree->node.data;
 }
 
+static void process_motion(struct tinywl_server *server, uint32_t time) {
+	// If their is the possibility of the client underneath the cursor changing EG: you close a
+	// window, then this function should be ran; it considers which window is under the cursor
+	// and then sends the cursor event to that window and if no windows are under the cursor it
+	// resets the cursor image.
+	double sx, sy;
+	struct wlr_seat *seat = server->seat;
+	struct wlr_surface *surface = NULL;
+	struct tinywl_view *view =
+	        desktop_view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+	if (!view && !seat->drag && server->cursor_mode != TINYWL_CURSOR_PRESSED) {
+		// If there's no view under the cursor, set the cursor image to
+		// the default. This is what makes the cursor image appear when
+		// you move it around the screen, not over any views.
+		wlr_xcursor_manager_set_cursor_image(server->cursor_mgr, "left_ptr",
+		                                     server->cursor);
+	}
+	if (server->cursor_mode == TINYWL_CURSOR_PRESSED && !seat->drag) {
+		// Send pointer events to the view which the mouse was pressed on
+		view = server->grabbed_view;
+		sx = server->cursor->x - view->x;
+		sy = server->cursor->y - view->y;
+		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+	} else if (surface) {
+		// Send pointer enter and motion events.
+		//
+		// The enter event gives the surface "pointer focus", which is
+		// distinct from keyboard focus. You get pointer focus by moving
+		// the pointer over a window.
+		//
+		// Note that wlroots will avoid sending duplicate enter/motion
+		// events if the surface has already has pointer focus or if the
+		// client is already aware of the coordinates passed.
+		wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+	} else {
+		// Clear pointer focus so future button events and such are not
+		// sent to the last client to have the cursor over it.
+		wlr_seat_pointer_clear_focus(seat);
+	}
+}
+
 static void focus_view(struct tinywl_view *parent_view) {
 	if (parent_view) {
 		struct tinywl_server *server = parent_view->server;
@@ -230,48 +259,7 @@ static void focus_view(struct tinywl_view *parent_view) {
 			                               keyboard->keycodes, keyboard->num_keycodes,
 			                               &keyboard->modifiers);
 		}
-	}
-}
-
-static void process_motion(struct tinywl_server *server, uint32_t time) {
-	// If their is the possibility of the client underneath the cursor changing EG: you close a
-	// window, then this function should be ran; it considers which window is under the cursor
-	// and then sends the cursor event to that window and if no windows are under the cursor it
-	// resets the cursor image.
-	double sx, sy;
-	struct wlr_seat *seat = server->seat;
-	struct wlr_surface *surface = NULL;
-	struct tinywl_view *view =
-	        desktop_view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-	if (!view && !seat->drag && server->cursor_mode != TINYWL_CURSOR_PRESSED) {
-		// If there's no view under the cursor, set the cursor image to
-		// the default. This is what makes the cursor image appear when
-		// you move it around the screen, not over any views.
-		wlr_xcursor_manager_set_cursor_image(server->cursor_mgr, "left_ptr",
-		                                     server->cursor);
-	}
-	if (server->cursor_mode == TINYWL_CURSOR_PRESSED && !seat->drag) {
-		// Send pointer events to the view which the mouse was pressed on
-		view = server->grabbed_view;
-		sx = server->cursor->x - view->x;
-		sy = server->cursor->y - view->y;
-		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-	} else if (surface) {
-		// Send pointer enter and motion events.
-		//
-		// The enter event gives the surface "pointer focus", which is
-		// distinct from keyboard focus. You get pointer focus by moving
-		// the pointer over a window.
-		//
-		// Note that wlroots will avoid sending duplicate enter/motion
-		// events if the surface has already has pointer focus or if the
-		// client is already aware of the coordinates passed.
-		wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
-		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-	} else {
-		// Clear pointer focus so future button events and such are not
-		// sent to the last client to have the cursor over it.
-		wlr_seat_pointer_clear_focus(seat);
+		process_motion(server, 0);
 	}
 }
 
@@ -322,14 +310,16 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	}
 
 	wl_list_remove(&view->link);
-	process_motion(view->server, 0);
 
 	// If there are views that can be focused but aren't, then focus them
 	if (wl_list_length(&view->server->views) > 0) {
-		struct tinywl_view *next_view =
-		        wl_container_of(view->server->views.next, next_view, link);
-		focus_view(next_view);
-	}
+		struct tinywl_view *view_to_be_focused =
+		        wl_container_of(view->server->views.next, view_to_be_focused, link);
+		focus_view(view_to_be_focused);
+	} else
+		// We do not need to process motion if we will change the focused view as the focus
+		// view function already does that for us
+		process_motion(view->server, 0);
 }
 
 static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
@@ -554,8 +544,24 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	case XKB_KEY_f:
 		run("firefox");
 		break;
-	case XKB_KEY_w:
-		run("flatpak run org.gnome.Epiphany");
+	case XKB_KEY_h:
+		message_print(server, "=== INSTRUCTIONS OF USE ===\n"
+		                      "Keybindings:\n"
+		                      " - ALt + escape - exit this compositor\n"
+		                      " - Alt + q      - close focused window\n"
+		                      " - Alt + enter  - open a terminal\n"
+		                      " - Alt + x      - sleep your system\n"
+		                      " - Alt + d/a    - go to previous/next window\n"
+		                      " - Alt + n      - open nautilus\n"
+		                      " - Alt + f      - open firefox\n"
+		                      " - Alt + h      - open a help menu\n"
+		                      "Other behaviours:\n"
+		                      " - You can press alt and then tap and hold on a window with "
+		                      "left click to drag it or right click to resize it\n"
+		                      "\n"
+		                      "===========================================\n"
+		                      "= Use the escape key to hide this message =\n"
+		                      "===========================================");
 		break;
 	default:
 		return false;
@@ -607,32 +613,23 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 					return;
 				}
 			}
-		} else if (modifiers == WLR_MODIFIER_ALT)
+		} else if (modifiers == WLR_MODIFIER_ALT) {
 			// If alt is held down, we attempt to process it as a compositor keybinding.
 			if (handle_keybinding(server, syms[nsyms - 1]))
 				// If we succeeded in processing it the we should not pass the event
 				// to the client
 				return;
+		} else if (!modifiers && syms[nsyms - 1] == XKB_KEY_Escape &&
+		           message_hide(server)) {
+			// If we press escape and we are able to hide a popup message then we do not
+			// need to process the keypress as a compositor keybinding
+			return;
+		}
 	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
 		// if the alt modifier is being held and you release it
 		if (modifiers == WLR_MODIFIER_ALT && syms[0] == 65513) {
 			if (!server->ignoreNextAltRelease)
-				run("alacritty -e bash -c \""
-				    "echo === INSTRUCTIONS OF USE ===;"
-				    "echo 'Keybindings:';"
-				    "echo ' - ALt + escape - exit this compositor';"
-				    "echo ' - Alt + q      - close focused window';"
-				    "echo ' - Alt + enter  - open a terminal';"
-				    "echo ' - Alt + x      - sleep your system';"
-				    "echo ' - Alt + d/a    - go to previous/next window';"
-				    "echo ' - Alt + n      - open nautilus';"
-				    "echo ' - Alt + f      - open firefox';"
-				    "echo 'Other behaviours:';"
-				    "echo ' - You can press alt and then tap and hold on a window "
-				    "with left click to drag it or right click to resize it';"
-				    "echo ' - At any time you can just press alt to see this help "
-				    "message now that you are inside the compositor';"
-				    "read -p 'press enter to continue...'\"");
+				message_print(server, "TODO: this is meant to be a launcher");
 			server->ignoreNextAltRelease = false;
 			return;
 		}
@@ -1287,6 +1284,17 @@ int main(int argc, char *argv[]) {
 
 	// Set the WAYLAND_DISPLAY environment variable to our socket
 	setenv("WAYLAND_DISPLAY", socket, true);
+
+	// Assign a space for user messages
+	server.message = malloc(sizeof(struct tinywl_message));
+	if (!server.message) {
+		wlr_log(WLR_ERROR, "Error allocating message structure");
+		return EXIT_FAILURE;
+	}
+	server.message->message = NULL;
+
+	// Set ignore next keyrelease because c initialises it to a random value
+	server.ignoreNextAltRelease = false;
 
 	// Run the Wayland event loop. This does not return until you exit the
 	// compositor. Starting the backend rigged up all of the necessary event

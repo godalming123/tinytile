@@ -28,9 +28,9 @@ sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
  - **ALt + d/a** - go to next/previous window
  - **Alt + n** - open nautilus
  - **Alt + f** - open firefox
+ - **Alt + h** - open a help menu when in the compositor
 ## Other behaviours
  - You can press alt and then tap and hold on a window with left click to drag it or right click to resize it
- - At any time you can just press alt to see this help message ounce in the compositor
 
 # Todo
 ## Implement protocols
@@ -49,6 +49,7 @@ sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
  - When resizing a client with a popup/parent it should keep the popup centered to the parent
  - Sometimes subsurfaces can go offscreen
 # Done
+ - Add font rendering using pango
  - Add a way to close windows with the keyboard
  - Allow switching virtual terminals
  - Add configuration for pointers via libinput
