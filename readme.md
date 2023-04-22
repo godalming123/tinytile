@@ -16,8 +16,14 @@ Or for fedora:
 sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
 ```
 2. run `meson build`
+3. configure keyboard layout
+It is recomended that you change your keyboard layout from the default which is gb to your keyboards layout. This can be changed by editing `config.h` and ounce you have started tinytile, it will only change again if you:
+  - modify `config.h`
+  - rerun `ninja -C build` and `ninja -C build install`
+  - relaunch tinytile.
 3. run `ninja -C build`
 4. run `ninja -C build install`
+5. run tinytile with the command `tinytile`
 
 # Usage
 ## Default keybindings
@@ -25,7 +31,8 @@ sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
  - **Alt + q** - close focused window
  - **Alt + enter** - Open alacritty (a terminal emulator)
  - **Alt + x** - sleep your system using systemctl
- - **ALt + d/a** - go to next/previous window
+ - **ALt + w/s** - go to next/previous window
+ - **Alt + a** - show a list of open windows
  - **Alt + n** - open nautilus
  - **Alt + f** - open firefox
  - **Alt + h** - open a help menu when in the compositor
@@ -45,7 +52,6 @@ sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
 ## Fix bugs
  - Gnome web cannot display websites - note: when installed as system package instead of flatpak it works (however the system package is gtk3 based which may be the reason for this)
  - Drag icon protocol randomly crashes the compositor when your mouse is not hovering a surface
- - Switching windows in reverse focus order gives wierd behavior
  - When resizing a client with a popup/parent it should keep the popup centered to the parent
  - Sometimes subsurfaces can go offscreen
 # Done
@@ -53,12 +59,13 @@ sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
  - Add a way to close windows with the keyboard
  - Allow switching virtual terminals
  - Add configuration for pointers via libinput
- - Changing keymaps
+ - Changing keymaps (currently we assume GB keymap)
  - Keybindings on release
  - Add fullscreen windows (the current implementation is very naive)
  - Use alt + mouse to drag/resize windows
  - When a window is closed the next window does not get focused
  - When dragging popup windows it should drag the parent instead
  - Use libinput to configure pointers
+ - Switching windows in reverse focus order gives wierd behavior
 ## Implement protocols
  - Virtual keyboard (needs testing)

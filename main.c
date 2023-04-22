@@ -4,6 +4,7 @@
 #include <linux/input-event-codes.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <wayland-util.h>
 #include <wlr/backend/libinput.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
@@ -15,11 +16,13 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 
-///////////////////////
-// STRUCTS AND ENUMS //
-//////////////////////
+//////////////////////////////////////////////////////
+// STRUCTS AND ENUMS (these are mostly anotated 👍) //
+//////////////////////////////////////////////////////
 
-// For brevity's sake, struct members are annotated where they are used.
+// scene layers
+enum { LyrClients, LyrMessage, LyrDragIcon, NUM_LAYERS };
+
 enum tinywl_cursor_mode {
 	TINYWL_CURSOR_PASSTHROUGH,
 	TINYWL_CURSOR_MOVE,
@@ -27,12 +30,26 @@ enum tinywl_cursor_mode {
 	TINYWL_CURSOR_PRESSED,
 };
 
-// scene layers
-enum { LyrClients, LyrMessage, LyrDragIcon, NUM_LAYERS };
+enum tinywl_message_type {
+	TinywlMsgNone,
+	TinywlMsgHello,
+	TinywlMsgRun, // TODO
+	TinywlMsgClientsList,
+	TinywlMsgHelp,
+};
+
+struct text_buffer {
+	struct wlr_buffer base;
+	void *data;
+	uint32_t format;
+	size_t stride;
+};
 
 struct tinywl_message {
+	struct text_buffer *buffer;
 	struct wlr_scene_buffer *message;
 	struct wl_surface *surface;
+	enum tinywl_message_type type;
 };
 
 struct tinywl_server {
@@ -49,6 +66,7 @@ struct tinywl_server {
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_surface;
 	struct wl_list views;
+	struct tinywl_view *focused_view;
 
 	struct wlr_cursor *cursor;
 	struct wlr_xcursor_manager *cursor_mgr;
@@ -110,7 +128,8 @@ struct tinywl_keyboard {
 	struct wl_listener destroy;
 };
 
-// Allow this file to access above code
+// Allow these files to access above code
+#include <config.h>
 #include <popup_message.h>
 
 //////////////////////
@@ -121,6 +140,25 @@ static void run(char *cmdTxt) {
 	// Simply runs a command in a forked process
 	if (fork() == 0) {
 		exit(system(cmdTxt));
+	}
+}
+
+static void displayClientList(struct tinywl_server *server) {
+	if (wl_list_length(&server->views) == 0)
+		message_print(server, "No views open", TinywlMsgClientsList);
+	else {
+		char message[800] = "Clients:";
+		
+		struct tinywl_view *view;
+		wl_list_for_each (view, &server->views, link) {
+			if (view == server->focused_view)
+				strcat(message, "\n -> ");
+			else
+				strcat(message, "\n    ");
+			strcat(message, view->xdg_toplevel->title);
+		}
+		
+		message_print(server, message, TinywlMsgClientsList);
 	}
 }
 
@@ -228,10 +266,10 @@ static void focus_view(struct tinywl_view *parent_view) {
 		if (parent_view->xdg_toplevel->parent)
 			parent_view = getParentViewFromPopup(view);
 
-		if (prev_surface == view->xdg_toplevel->base->surface) {
-			// Don't re-focus an already focused surface.
+		// Don't re-focus an already focused surface.
+		if (prev_surface == view->xdg_toplevel->base->surface)
 			return;
-		}
+
 		if (prev_surface) {
 			// Deactivate the previously focused surface. This lets the
 			// client know it no longer has focus and the client will
@@ -245,8 +283,7 @@ static void focus_view(struct tinywl_view *parent_view) {
 
 		// Move the view to the front
 		wlr_scene_node_raise_to_top(&parent_view->scene_tree->node);
-		wl_list_remove(&view->link);
-		wl_list_insert(&server->views, &view->link);
+		server->focused_view = parent_view;
 
 		// Activate the new surface
 		wlr_xdg_toplevel_set_activated(view->xdg_toplevel, true);
@@ -269,12 +306,11 @@ static void focus_view(struct tinywl_view *parent_view) {
 
 static void killfocused(struct tinywl_server *server) {
 	// Note that this kills the client that has keyboard focus rathor then pointer focus
-	struct wlr_surface *root_surface = server->seat->keyboard_state.focused_surface;
-	struct wlr_xdg_surface *xdg_surface;
-	if (root_surface && wlr_surface_is_xdg_surface(root_surface) &&
-	    (xdg_surface = wlr_xdg_surface_from_wlr_surface(root_surface))) {
-		wlr_xdg_toplevel_send_close(xdg_surface->toplevel);
-	}
+	struct wlr_surface *focused_wlr_surface = server->seat->keyboard_state.focused_surface;
+	struct wlr_xdg_surface *focused_xdg_surface;
+	if (focused_wlr_surface &&
+	    (focused_xdg_surface = wlr_xdg_surface_from_wlr_surface(focused_wlr_surface)))
+		wlr_xdg_toplevel_send_close(focused_xdg_surface->toplevel);
 }
 
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
@@ -295,7 +331,10 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 		wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
 	}
 
-	wl_list_insert(&view->server->views, &view->link);
+	if (view->server->focused_view)
+		wl_list_insert(&view->server->focused_view->link, &view->link);
+	else
+		wl_list_insert(&view->server->views, &view->link);
 
 	focus_view(view);
 }
@@ -315,11 +354,13 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	if (wl_list_length(&view->server->views) > 0) {
 		struct tinywl_view *view_to_be_focused =
 		        wl_container_of(view->server->views.next, view_to_be_focused, link);
-		focus_view(view_to_be_focused);
-	} else
 		// We do not need to process motion if we will change the focused view as the focus
 		// view function already does that for us
+		focus_view(view_to_be_focused);
+	} else {
 		process_motion(view->server, 0);
+		view->server->focused_view = NULL;
+	}
 }
 
 static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
@@ -522,21 +563,36 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	case XKB_KEY_x:
 		run("systemctl suspend");
 		break;
-	case XKB_KEY_d:
+	case XKB_KEY_a:
+		displayClientList(server);
+		break;
+	case XKB_KEY_w:
+		// Cycle to the previous view
+		if (wl_list_length(&server->views) > 1) {
+			struct tinywl_view *prev_view =
+			        wl_container_of(server->focused_view->link.prev, prev_view, link);
+			if (&prev_view->link == &server->views)
+				// wrap past sentinal node
+				prev_view = wl_container_of(prev_view->link.prev, prev_view, link);
+
+			wlr_scene_node_raise_to_top(&prev_view->scene_tree->node);
+			server->focused_view = prev_view;
+		}
+		displayClientList(server);
+		break;
+	case XKB_KEY_s:
 		// Cycle to the next view
 		if (wl_list_length(&server->views) > 1) {
 			struct tinywl_view *next_view =
-			        wl_container_of(server->views.prev, next_view, link);
-			focus_view(next_view);
+			        wl_container_of(server->focused_view->link.next, next_view, link);
+			if (&next_view->link == &server->views)
+				// wrap past sentinal node
+				next_view = wl_container_of(next_view->link.next, next_view, link);
+
+			wlr_scene_node_raise_to_top(&next_view->scene_tree->node);
+			server->focused_view = next_view;
 		}
-		break;
-	case XKB_KEY_a:
-		// Cycle to the previous view (TODO: does not work reliably)
-		if (wl_list_length(&server->views) > 1) {
-			struct tinywl_view *prev_view =
-			        wl_container_of(server->views.next->next, prev_view, link);
-			focus_view(prev_view);
-		}
+		displayClientList(server);
 		break;
 	case XKB_KEY_n:
 		run("nautilus");
@@ -545,23 +601,26 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		run("firefox");
 		break;
 	case XKB_KEY_h:
-		message_print(server, "=== INSTRUCTIONS OF USE ===\n"
-		                      "Keybindings:\n"
-		                      " - ALt + escape - exit this compositor\n"
-		                      " - Alt + q      - close focused window\n"
-		                      " - Alt + enter  - open a terminal\n"
-		                      " - Alt + x      - sleep your system\n"
-		                      " - Alt + d/a    - go to previous/next window\n"
-		                      " - Alt + n      - open nautilus\n"
-		                      " - Alt + f      - open firefox\n"
-		                      " - Alt + h      - open a help menu\n"
-		                      "Other behaviours:\n"
-		                      " - You can press alt and then tap and hold on a window with "
-		                      "left click to drag it or right click to resize it\n"
-		                      "\n"
-		                      "===========================================\n"
-		                      "= Use the escape key to hide this message =\n"
-		                      "===========================================");
+		message_print(server,
+		              "=== Usage instructions: ===\n"
+		              "Keybindings:\n"
+		              " - ALt + escape - exit this compositor\n"
+		              " - Alt + q      - close focused window\n"
+		              " - Alt + enter  - open a terminal\n"
+		              " - Alt + x      - sleep your system\n"
+		              " - Alt + w/s    - go to previous/next window\n"
+		              " - Alt + a      - show a list of open windows\n"
+		              " - Alt + n      - open nautilus\n"
+		              " - Alt + f      - open firefox\n"
+		              " - Alt + h      - open a help menu\n"
+		              "Other behaviours:\n"
+		              " - You can press alt and then tap and hold on a window with "
+		              "left click to drag it or right click to resize it\n"
+		              "\n"
+		              "===========================================\n"
+		              "= Use the escape key to hide this message =\n"
+		              "===========================================",
+		              TinywlMsgHelp);
 		break;
 	default:
 		return false;
@@ -628,8 +687,23 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
 		// if the alt modifier is being held and you release it
 		if (modifiers == WLR_MODIFIER_ALT && syms[0] == 65513) {
-			if (!server->ignoreNextAltRelease)
-				message_print(server, "TODO: this is meant to be a launcher");
+			if (!server->ignoreNextAltRelease) {
+				time_t t = time(0);
+
+				char message[800] = "⏳️ ";
+				strcat(message, ctime(&t));
+				strcat(message, "🔍 Type to search (TODO)");
+
+				message_print(server, message, TinywlMsgHello);
+			}
+			if (server->message->type == TinywlMsgClientsList) {
+				// If we are displaying the clients list and we release alt
+				// (meaning we have picked our client) then focus it and
+				// hide the clients list
+				message_hide(server);
+				focus_view(server->focused_view);
+				return;
+			}
 			server->ignoreNextAltRelease = false;
 			return;
 		}
@@ -663,7 +737,7 @@ static void server_new_keyboard(struct tinywl_server *server, struct wlr_input_d
 	// assumes a UK layout.
 	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 	struct xkb_keymap *keymap = xkb_keymap_new_from_names(
-	        context, &(struct xkb_rule_names){.layout = "gb", .options = ""},
+	        context, &(struct xkb_rule_names){.layout = keyboardLayout, .options = ""},
 	        XKB_KEYMAP_COMPILE_NO_FLAGS);
 
 	wlr_keyboard_set_keymap(wlr_keyboard, keymap);
@@ -1291,10 +1365,10 @@ int main(int argc, char *argv[]) {
 		wlr_log(WLR_ERROR, "Error allocating message structure");
 		return EXIT_FAILURE;
 	}
-	server.message->message = NULL;
 
 	// Set ignore next keyrelease because c initialises it to a random value
 	server.ignoreNextAltRelease = false;
+	server.focused_view = NULL;
 
 	// Run the Wayland event loop. This does not return until you exit the
 	// compositor. Starting the backend rigged up all of the necessary event

@@ -6,19 +6,16 @@
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/log.h>
 
-const char *font_description = "Mono 12";
-const int horizontal_padding = 8;
-const int vertical_padding = 3;
-const int radius = 15;
-float msg_bg_color[4] = {0.156, 0.172, 0.203, 0.9};
-float msg_fg_color[4] = {1.0, 1.0, 1.0, 1.0};
-
 ////////////////
 // CAIRO CODE //
 ////////////////
 
 void rounded_rectangle(cairo_t *cr, int x, int y, int w, int h, int r, float bg_color[4]) {
 	const float pi = 3.141592653589;
+	if (r > (w / 2))
+		r = w / 2;
+	if (r > (h / 2))
+		r = h / 2;
 	cairo_new_sub_path(cr);
 	cairo_arc(cr, x + r, y + r, r, pi, pi * 1.5);
 	cairo_arc(cr, x + w - r, y + r, r, pi * 1.5, pi * 2);
@@ -85,13 +82,6 @@ void pango_print(cairo_t *cairo, const char *font, double scale, const char *tex
 //////////////////
 // WLROOTS CODE //
 //////////////////
-
-struct text_buffer {
-	struct wlr_buffer base;
-	void *data;
-	uint32_t format;
-	size_t stride;
-};
 
 static void text_buffer_destroy(struct wlr_buffer *wlr_buffer) {
 	struct text_buffer *buffer = wl_container_of(wlr_buffer, buffer, base);
@@ -176,8 +166,8 @@ struct text_buffer *create_message_texture(const char *string, struct tinywl_out
 	int width, height;
 	get_text_size(c, string, output->wlr_output->scale, font_description, &width, &height,
 	              NULL);
-	width += 2 * horizontal_padding;
-	height += 2 * vertical_padding;
+	width += 2 * text_horizontal_padding;
+	height += 2 * text_vertical_padding;
 	cairo_surface_destroy(dummy_surface);
 	cairo_destroy(c);
 
@@ -189,13 +179,13 @@ struct text_buffer *create_message_texture(const char *string, struct tinywl_out
 	cairo_font_options_destroy(fo);
 
 	// Draw rounded background
-	rounded_rectangle(cairo, 0, 0, width, height, radius, msg_bg_color);
+	rounded_rectangle(cairo, 0, 0, width, height, rounding_radius, message_bg_color);
 
 	// Draw text
-	cairo_set_source_rgba(cairo, msg_fg_color[0], msg_fg_color[1], msg_fg_color[2],
-	                      msg_fg_color[3]);
+	cairo_set_source_rgba(cairo, message_fg_color[0], message_fg_color[1], message_fg_color[2],
+	                      message_fg_color[3]);
 	cairo_stroke(cairo);
-	cairo_move_to(cairo, horizontal_padding, vertical_padding);
+	cairo_move_to(cairo, text_horizontal_padding, text_vertical_padding);
 	pango_print(cairo, font_description, output->wlr_output->scale, string);
 	cairo_surface_flush(surface);
 
@@ -220,31 +210,33 @@ struct text_buffer *create_message_texture(const char *string, struct tinywl_out
 }
 
 bool message_hide(struct tinywl_server *server) {
-	if (server->message && server->message->message != 0) {
+	if (server->message->message && server->message->type != TinywlMsgNone) {
 		wlr_scene_buffer_set_buffer(server->message->message, NULL);
+		server->message->type = TinywlMsgNone;
 		return true;
 	}
-	else
-		return false;
+	return false;
 }
 
-void message_print(struct tinywl_server *server, const char *text) {
+void message_print(struct tinywl_server *server, const char *text, enum tinywl_message_type type) {
 	struct tinywl_output *output = wl_container_of(server->outputs.next, output, link);
 	message_hide(server);
 
-	struct text_buffer *buf = create_message_texture(text, output);
-	if (!buf) {
+	server->message->buffer = create_message_texture(text, output);
+	if (!server->message->buffer) {
 		wlr_log(WLR_ERROR, "Could not create message texture");
 		return;
 	}
+	server->message->type = type;
 
 	double scale = output->wlr_output->scale;
-	int width = buf->base.width / scale;
-	int height = buf->base.height / scale;
+	int width = server->message->buffer->base.width / scale;
+	int height = server->message->buffer->base.height / scale;
 	int x = (output->wlr_output->width - width) / 2;
 	int y = (output->wlr_output->height - height) / 2;
 
-	server->message->message = wlr_scene_buffer_create(server->layers[LyrMessage], &buf->base);
+	server->message->message =
+	        wlr_scene_buffer_create(server->layers[LyrMessage], &server->message->buffer->base);
 	wlr_scene_node_raise_to_top(&server->message->message->node);
 	wlr_scene_node_set_enabled(&server->message->message->node, true);
 	struct wlr_box output_box;
