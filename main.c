@@ -143,12 +143,30 @@ static void run(char *cmdTxt) {
 	}
 }
 
+static struct tinywl_view * getPrevView(struct tinywl_server *server) {
+	struct tinywl_view *view;
+	if (server->focused_view->link.prev != &server->views)
+		return wl_container_of(server->focused_view->link.prev, view, link);
+	else
+		// wrap past sentinal node
+		return wl_container_of(server->focused_view->link.prev->prev, view, link);
+}
+
+static struct tinywl_view * getNextView(struct tinywl_server *server) {
+	struct tinywl_view *view;
+	if (server->focused_view->link.next != &server->views)
+		return wl_container_of(server->focused_view->link.next, view, link);
+	else
+		// wrap past sentinal node
+		return wl_container_of(server->focused_view->link.next->next, view, link);
+}
+
 static void displayClientList(struct tinywl_server *server) {
 	if (wl_list_length(&server->views) == 0)
 		message_print(server, "No views open", TinywlMsgClientsList);
 	else {
 		char message[800] = "Clients:";
-		
+
 		struct tinywl_view *view;
 		wl_list_for_each (view, &server->views, link) {
 			if (view == server->focused_view)
@@ -157,7 +175,7 @@ static void displayClientList(struct tinywl_server *server) {
 				strcat(message, "\n    ");
 			strcat(message, view->xdg_toplevel->title);
 		}
-		
+
 		message_print(server, message, TinywlMsgClientsList);
 	}
 }
@@ -283,7 +301,7 @@ static void focus_view(struct tinywl_view *parent_view) {
 
 		// Move the view to the front
 		wlr_scene_node_raise_to_top(&parent_view->scene_tree->node);
-		server->focused_view = parent_view;
+		server->focused_view = view;
 
 		// Activate the new surface
 		wlr_xdg_toplevel_set_activated(view->xdg_toplevel, true);
@@ -306,11 +324,8 @@ static void focus_view(struct tinywl_view *parent_view) {
 
 static void killfocused(struct tinywl_server *server) {
 	// Note that this kills the client that has keyboard focus rathor then pointer focus
-	struct wlr_surface *focused_wlr_surface = server->seat->keyboard_state.focused_surface;
-	struct wlr_xdg_surface *focused_xdg_surface;
-	if (focused_wlr_surface &&
-	    (focused_xdg_surface = wlr_xdg_surface_from_wlr_surface(focused_wlr_surface)))
-		wlr_xdg_toplevel_send_close(focused_xdg_surface->toplevel);
+	if (server->focused_view)
+		wlr_xdg_toplevel_send_close(server->focused_view->xdg_toplevel);
 }
 
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
@@ -348,16 +363,15 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 		reset_cursor_mode(view->server);
 	}
 
-	wl_list_remove(&view->link);
-
 	// If there are views that can be focused but aren't, then focus them
-	if (wl_list_length(&view->server->views) > 0) {
-		struct tinywl_view *view_to_be_focused =
-		        wl_container_of(view->server->views.next, view_to_be_focused, link);
+	if (view->server->focused_view == view && wl_list_length(&view->server->views) > 1) {
+		struct tinywl_view *view_to_be_focused = getPrevView(view->server);
+		wl_list_remove(&view->link);
 		// We do not need to process motion if we will change the focused view as the focus
 		// view function already does that for us
 		focus_view(view_to_be_focused);
 	} else {
+		wl_list_remove(&view->link);
 		process_motion(view->server, 0);
 		view->server->focused_view = NULL;
 	}
@@ -569,12 +583,7 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	case XKB_KEY_w:
 		// Cycle to the previous view
 		if (wl_list_length(&server->views) > 1) {
-			struct tinywl_view *prev_view =
-			        wl_container_of(server->focused_view->link.prev, prev_view, link);
-			if (&prev_view->link == &server->views)
-				// wrap past sentinal node
-				prev_view = wl_container_of(prev_view->link.prev, prev_view, link);
-
+			struct tinywl_view *prev_view = getPrevView(server);
 			wlr_scene_node_raise_to_top(&prev_view->scene_tree->node);
 			server->focused_view = prev_view;
 		}
@@ -583,12 +592,7 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	case XKB_KEY_s:
 		// Cycle to the next view
 		if (wl_list_length(&server->views) > 1) {
-			struct tinywl_view *next_view =
-			        wl_container_of(server->focused_view->link.next, next_view, link);
-			if (&next_view->link == &server->views)
-				// wrap past sentinal node
-				next_view = wl_container_of(next_view->link.next, next_view, link);
-
+			struct tinywl_view *next_view = getNextView(server);
 			wlr_scene_node_raise_to_top(&next_view->scene_tree->node);
 			server->focused_view = next_view;
 		}
@@ -692,7 +696,8 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 
 				char message[800] = "⏳️ ";
 				strcat(message, ctime(&t));
-				strcat(message, "🔍 Type to search (TODO)");
+				strcat(message, "🔍 Type to search (TODO)\n"
+				                "?  Use the alt + h keybinding for more help");
 
 				message_print(server, message, TinywlMsgHello);
 			}
@@ -702,7 +707,6 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 				// hide the clients list
 				message_hide(server);
 				focus_view(server->focused_view);
-				return;
 			}
 			server->ignoreNextAltRelease = false;
 			return;

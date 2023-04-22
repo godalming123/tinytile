@@ -211,7 +211,7 @@ struct text_buffer *create_message_texture(const char *string, struct tinywl_out
 
 bool message_hide(struct tinywl_server *server) {
 	if (server->message->message && server->message->type != TinywlMsgNone) {
-		wlr_scene_buffer_set_buffer(server->message->message, NULL);
+		wlr_scene_node_set_enabled(&server->message->message->node, false);
 		server->message->type = TinywlMsgNone;
 		return true;
 	}

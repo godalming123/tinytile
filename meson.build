@@ -69,7 +69,7 @@ conf_data = configuration_data()
 
 executable(
   meson.project_name(),
-  ['main.c', 'popup_message.h'],
+  ['main.c', 'popup_message.h', 'config.h'],
   dependencies: [
     wlroots,
     server_protos,

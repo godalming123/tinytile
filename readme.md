@@ -6,14 +6,17 @@ A fork of tinywl designed to be a simple base for a tiling WM (but currently we 
 	- wlroots
 	- wayland-protocols
 	- meson
+  - pango
+  - cairo
+  - alacritty (recomended but not techinically necersarry)
 
 EG for arch:
 ```
-sudo pacman -S wlroots wayland-protocols meson
+sudo pacman -S wlroots wayland-protocols meson pango
 ```
 Or for fedora:
 ```
-sudo dnf install wlroots wlroots-devel wayland-protocols-devel meson
+sudo dnf install wlroots-devel wayland-protocols-devel meson gcc pango-devel
 ```
 2. run `meson build`
 3. configure keyboard layout
