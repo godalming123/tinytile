@@ -8,7 +8,7 @@ A fork of tinywl designed to be a simple base for a tiling WM (but currently we 
 	- meson
   - pango
   - cairo
-  - alacritty (recomended but not techinically necersarry)
+  - alacritty (recommended but not techinically necersarry)
 
 EG for arch:
 ```
@@ -35,7 +35,8 @@ It is recomended that you change your keyboard layout from the default which is 
  - **Alt + enter** - Open alacritty (a terminal emulator)
  - **Alt + x** - sleep your system using systemctl
  - **ALt + w/s** - go to next/previous window
- - **Alt + a** - show a list of open windows
+ - **ALt + shift + w/s** - swap with next/previous window
+ - **Alt + a** - show a list of open windows (hides as soon as you release alt)
  - **Alt + n** - open nautilus
  - **Alt + f** - open firefox
  - **Alt + h** - open a help menu when in the compositor
@@ -53,7 +54,7 @@ It is recomended that you change your keyboard layout from the default which is 
  - Changing monitor configurations
  - Make new windows launch on the focused monitor rathor then 0, 0
 ## Fix bugs
- - Gnome web cannot display websites - note: when installed as system package instead of flatpak it works (however the system package is gtk3 based which may be the reason for this)
+ - Their is a momory leak when opening messages such as the hello message
  - Drag icon protocol randomly crashes the compositor when your mouse is not hovering a surface
  - When resizing a client with a popup/parent it should keep the popup centered to the parent
  - Sometimes subsurfaces can go offscreen

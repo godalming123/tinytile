@@ -2,19 +2,15 @@
 
 #include <assert.h>
 #include <linux/input-event-codes.h>
-#include <stdlib.h>
 #include <unistd.h>
-#include <wayland-util.h>
 #include <wlr/backend/libinput.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_data_device.h>
-#include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_shell.h>
-#include <wlr/util/log.h>
 
 //////////////////////////////////////////////////////
 // STRUCTS AND ENUMS (these are mostly anotated 👍) //
@@ -143,22 +139,24 @@ static void run(char *cmdTxt) {
 	}
 }
 
-static struct tinywl_view * getPrevView(struct tinywl_server *server) {
+static struct tinywl_view *getPrevView(struct tinywl_server *server, bool wrap) {
 	struct tinywl_view *view;
 	if (server->focused_view->link.prev != &server->views)
 		return wl_container_of(server->focused_view->link.prev, view, link);
-	else
+	else if (wrap)
 		// wrap past sentinal node
 		return wl_container_of(server->focused_view->link.prev->prev, view, link);
+	return server->focused_view;
 }
 
-static struct tinywl_view * getNextView(struct tinywl_server *server) {
+static struct tinywl_view *getNextView(struct tinywl_server *server, bool wrap) {
 	struct tinywl_view *view;
 	if (server->focused_view->link.next != &server->views)
 		return wl_container_of(server->focused_view->link.next, view, link);
-	else
+	else if (wrap)
 		// wrap past sentinal node
 		return wl_container_of(server->focused_view->link.next->next, view, link);
+	return server->focused_view;
 }
 
 static void displayClientList(struct tinywl_server *server) {
@@ -365,7 +363,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 
 	// If there are views that can be focused but aren't, then focus them
 	if (view->server->focused_view == view && wl_list_length(&view->server->views) > 1) {
-		struct tinywl_view *view_to_be_focused = getPrevView(view->server);
+		struct tinywl_view *view_to_be_focused = getPrevView(view->server, true);
 		wl_list_remove(&view->link);
 		// We do not need to process motion if we will change the focused view as the focus
 		// view function already does that for us
@@ -557,11 +555,10 @@ static void server_new_xdg_surface(struct wl_listener *listener, void *data) {
 // MANAGING KEYBOARDS AND KEYBINDINGS //
 ////////////////////////////////////////
 
-static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
-	// Here we handle compositor keybindings. This is when the compositor is
-	// processing keys, rather than passing them on to the client for its
-	// own processing. This function assumes Alt is held down. Note:
-	// returning true indicates the keybinding has been handled and will not
+static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
+	// Here we handle compositor keybindings where you press alt and nother key. This is when
+	// the compositor is processing keys, rather than passing them on to the client for its own
+	// processing. Note: returning true indicates the keybinding has been handled and will not
 	// be passed to the client, otherwise the keybinding will be passed to
 	// the client
 	switch (sym) {
@@ -583,7 +580,7 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	case XKB_KEY_w:
 		// Cycle to the previous view
 		if (wl_list_length(&server->views) > 1) {
-			struct tinywl_view *prev_view = getPrevView(server);
+			struct tinywl_view *prev_view = getPrevView(server, wrapClientPicker);
 			wlr_scene_node_raise_to_top(&prev_view->scene_tree->node);
 			server->focused_view = prev_view;
 		}
@@ -592,7 +589,7 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	case XKB_KEY_s:
 		// Cycle to the next view
 		if (wl_list_length(&server->views) > 1) {
-			struct tinywl_view *next_view = getNextView(server);
+			struct tinywl_view *next_view = getNextView(server, wrapClientPicker);
 			wlr_scene_node_raise_to_top(&next_view->scene_tree->node);
 			server->focused_view = next_view;
 		}
@@ -608,15 +605,16 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		message_print(server,
 		              "=== Usage instructions: ===\n"
 		              "Keybindings:\n"
-		              " - ALt + escape - exit this compositor\n"
-		              " - Alt + q      - close focused window\n"
-		              " - Alt + enter  - open a terminal\n"
-		              " - Alt + x      - sleep your system\n"
-		              " - Alt + w/s    - go to previous/next window\n"
-		              " - Alt + a      - show a list of open windows\n"
-		              " - Alt + n      - open nautilus\n"
-		              " - Alt + f      - open firefox\n"
-		              " - Alt + h      - open a help menu\n"
+		              " - ALt + escape      - exit this compositor\n"
+		              " - Alt + q           - close focused window\n"
+		              " - Alt + enter       - open a terminal\n"
+		              " - Alt + x           - sleep your system\n"
+		              " - Alt + w/s         - go to previous/next window\n"
+		              " - Alt + shift + w/s - swap with previous/next window\n"
+		              " - Alt + a           - show a list of open windows (hides as soon as you release alt)\n"
+		              " - Alt + n           - open nautilus\n"
+		              " - Alt + f           - open firefox\n"
+		              " - Alt + h           - open a help menu\n"
 		              "Other behaviours:\n"
 		              " - You can press alt and then tap and hold on a window with "
 		              "left click to drag it or right click to resize it\n"
@@ -625,6 +623,30 @@ static bool handle_keybinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		              "= Use the escape key to hide this message =\n"
 		              "===========================================",
 		              TinywlMsgHelp);
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
+static bool handle_altshiftbinding(struct tinywl_server *server, xkb_keysym_t sym) {
+	switch (sym) {
+	case XKB_KEY_W:
+		if (wl_list_length(&server->views) > 1) {
+			struct wl_list *previous = server->focused_view->link.prev->prev;
+			wl_list_remove(&server->focused_view->link);
+			wl_list_insert(previous, &server->focused_view->link);
+		}
+		displayClientList(server);
+		break;
+	case XKB_KEY_S:
+		if (wl_list_length(&server->views) > 1) {
+			struct wl_list *next = server->focused_view->link.next;
+			wl_list_remove(&server->focused_view->link);
+			wl_list_insert(next, &server->focused_view->link);
+		}
+		displayClientList(server);
 		break;
 	default:
 		return false;
@@ -678,9 +700,13 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 			}
 		} else if (modifiers == WLR_MODIFIER_ALT) {
 			// If alt is held down, we attempt to process it as a compositor keybinding.
-			if (handle_keybinding(server, syms[nsyms - 1]))
+			if (handle_altbinding(server, syms[nsyms - 1]))
 				// If we succeeded in processing it the we should not pass the event
 				// to the client
+				return;
+		} else if (modifiers == (WLR_MODIFIER_ALT | WLR_MODIFIER_SHIFT)) {
+			// If alt and shift are held down, do the same
+			if (handle_altshiftbinding(server, syms[nsyms - 1]))
 				return;
 		} else if (!modifiers && syms[nsyms - 1] == XKB_KEY_Escape &&
 		           message_hide(server)) {
