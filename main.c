@@ -57,7 +57,7 @@ struct tinywl_server {
 	struct wlr_scene_tree *layers[NUM_LAYERS];
 
 	bool ignoreNextAltRelease;
-	struct tinywl_message *message;
+	struct tinywl_message message;
 
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_surface;
@@ -161,7 +161,7 @@ static struct tinywl_view *getNextView(struct tinywl_server *server, bool wrap) 
 
 static void displayClientList(struct tinywl_server *server) {
 	if (wl_list_length(&server->views) == 0)
-		message_print(server, "No views open", TinywlMsgClientsList);
+		message_print(server, "No clients open", TinywlMsgClientsList);
 	else {
 		char message[800] = "Clients:";
 
@@ -231,8 +231,8 @@ static struct tinywl_view *desktop_view_at(struct tinywl_server *server, double 
 
 static void process_motion(struct tinywl_server *server, uint32_t time) {
 	// If their is the possibility of the client underneath the cursor changing EG: you close a
-	// window, then this function should be ran; it considers which window is under the cursor
-	// and then sends the cursor event to that window and if no windows are under the cursor it
+	// client, then this function should be ran; it considers which client is under the cursor
+	// and then sends the cursor event to that client and if no clients are under the cursor it
 	// resets the cursor image.
 	double sx, sy;
 	struct wlr_seat *seat = server->seat;
@@ -257,7 +257,7 @@ static void process_motion(struct tinywl_server *server, uint32_t time) {
 		//
 		// The enter event gives the surface "pointer focus", which is
 		// distinct from keyboard focus. You get pointer focus by moving
-		// the pointer over a window.
+		// the pointer over a client.
 		//
 		// Note that wlroots will avoid sending duplicate enter/motion
 		// events if the surface has already has pointer focus or if the
@@ -394,7 +394,7 @@ static void begin_interactive(struct tinywl_view *view, enum tinywl_cursor_mode 
                               uint32_t edges) {
 	// This function sets up an interactive move or resize operation, where
 	// the compositor stops propegating pointer events to clients and
-	// instead consumes them itself, to move or resize windows.
+	// instead consumes them itself, to move or resize clients.
 	if (view) {
 		struct tinywl_server *server = view->server;
 		struct wlr_surface *focused_surface = server->seat->pointer_state.focused_surface;
@@ -727,7 +727,7 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 
 				message_print(server, message, TinywlMsgHello);
 			}
-			if (server->message->type == TinywlMsgClientsList) {
+			if (server->message.type == TinywlMsgClientsList) {
 				// If we are displaying the clients list and we release alt
 				// (meaning we have picked our client) then focus it and
 				// hide the clients list
@@ -975,9 +975,9 @@ static void server_cursor_motion(struct wl_listener *listener, void *data) {
 static void server_cursor_motion_absolute(struct wl_listener *listener, void *data) {
 	// This event is forwarded by the cursor when a pointer emits an
 	// _absolute_ motion event, from 0..1 on each axis. This happens, for
-	// example, when wlroots is running under a Wayland window rather than
-	// KMS+DRM, and you move the mouse over the window. You could enter the
-	// window from any edge, so we have to warp the mouse there. There is
+	// example, when wlroots is running under a Wayland client rather than
+	// KMS+DRM, and you move the mouse over the client. You could enter the
+	// client from any edge, so we have to warp the mouse there. There is
 	// also some hardware which emits these events.
 	struct tinywl_server *server = wl_container_of(listener, server, cursor_motion_absolute);
 	struct wlr_pointer_motion_absolute_event *event = data;
@@ -1022,7 +1022,7 @@ static void server_cursor_button(struct wl_listener *listener, void *data) {
 		reset_cursor_mode(server);
 	} else if (view) {
 		// we set the grabbed view so that when you are holding your cursor
-		// and you move it off the window the window still reveives mouse
+		// and you move it off the client the client still reveives mouse
 		// events
 		server->grabbed_view = view;
 		server->cursor_mode = TINYWL_CURSOR_PRESSED;
@@ -1285,7 +1285,7 @@ int main(int argc, char *argv[]) {
 	wlr_scene_attach_output_layout(server.scene, server.output_layout);
 
 	// Set up xdg-shell version 3. The xdg-shell is a Wayland protocol which
-	// is used for application windows. For more detail on shells, refer to
+	// is used for application clients. For more detail on shells, refer to
 	// my article:
 	//
 	// https://drewdevault.com/2018/07/29/Wayland-shells.html
@@ -1388,13 +1388,6 @@ int main(int argc, char *argv[]) {
 
 	// Set the WAYLAND_DISPLAY environment variable to our socket
 	setenv("WAYLAND_DISPLAY", socket, true);
-
-	// Assign a space for user messages
-	server.message = malloc(sizeof(struct tinywl_message));
-	if (!server.message) {
-		wlr_log(WLR_ERROR, "Error allocating message structure");
-		return EXIT_FAILURE;
-	}
 
 	// Set ignore next keyrelease because c initialises it to a random value
 	server.ignoreNextAltRelease = false;

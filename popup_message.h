@@ -210,9 +210,9 @@ struct text_buffer *create_message_texture(const char *string, struct tinywl_out
 }
 
 bool message_hide(struct tinywl_server *server) {
-	if (server->message->message && server->message->type != TinywlMsgNone) {
-		wlr_scene_node_set_enabled(&server->message->message->node, false);
-		server->message->type = TinywlMsgNone;
+	if (server->message.message && server->message.type != TinywlMsgNone) {
+		wlr_scene_node_set_enabled(&server->message.message->node, false);
+		server->message.type = TinywlMsgNone;
 		return true;
 	}
 	return false;
@@ -222,26 +222,26 @@ void message_print(struct tinywl_server *server, const char *text, enum tinywl_m
 	struct tinywl_output *output = wl_container_of(server->outputs.next, output, link);
 	message_hide(server);
 
-	server->message->buffer = create_message_texture(text, output);
-	if (!server->message->buffer) {
+	server->message.buffer = create_message_texture(text, output);
+	if (!server->message.buffer) {
 		wlr_log(WLR_ERROR, "Could not create message texture");
 		return;
 	}
-	server->message->type = type;
+	server->message.type = type;
 
 	double scale = output->wlr_output->scale;
-	int width = server->message->buffer->base.width / scale;
-	int height = server->message->buffer->base.height / scale;
+	int width = server->message.buffer->base.width / scale;
+	int height = server->message.buffer->base.height / scale;
 	int x = (output->wlr_output->width - width) / 2;
 	int y = (output->wlr_output->height - height) / 2;
 
-	server->message->message =
-	        wlr_scene_buffer_create(server->layers[LyrMessage], &server->message->buffer->base);
-	wlr_scene_node_raise_to_top(&server->message->message->node);
-	wlr_scene_node_set_enabled(&server->message->message->node, true);
+	server->message.message =
+	        wlr_scene_buffer_create(server->layers[LyrMessage], &server->message.buffer->base);
+	wlr_scene_node_raise_to_top(&server->message.message->node);
+	wlr_scene_node_set_enabled(&server->message.message->node, true);
 	struct wlr_box output_box;
 	wlr_output_layout_get_box(output->server->output_layout, output->wlr_output, &output_box);
-	wlr_scene_buffer_set_dest_size(server->message->message, width, height);
-	wlr_scene_node_set_position(&server->message->message->node, x + output_box.x,
+	wlr_scene_buffer_set_dest_size(server->message.message, width, height);
+	wlr_scene_node_set_position(&server->message.message->node, x + output_box.x,
 	                            y + output_box.y);
 }
