@@ -248,9 +248,8 @@ static void process_motion(struct tinywl_server *server, uint32_t time) {
 	}
 	if (server->cursor_mode == TINYWL_CURSOR_PRESSED && !seat->drag) {
 		// Send pointer events to the view which the mouse was pressed on
-		view = server->grabbed_view;
-		sx = server->cursor->x - view->x;
-		sy = server->cursor->y - view->y;
+		sx = server->cursor->x - server->grab_x;
+		sy = server->cursor->y - server->grab_y;
 		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
 	} else if (surface) {
 		// Send pointer enter and motion events.
@@ -1024,8 +1023,9 @@ static void server_cursor_button(struct wl_listener *listener, void *data) {
 		// we set the grabbed view so that when you are holding your cursor
 		// and you move it off the client the client still reveives mouse
 		// events
-		server->grabbed_view = view;
 		server->cursor_mode = TINYWL_CURSOR_PRESSED;
+		server->grab_x = server->cursor->x - sx;
+		server->grab_y = server->cursor->y - sy;
 	}
 }
 
