@@ -618,23 +618,26 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		message_print(server,
 		              "=== Usage instructions: ===\n"
 		              "Keybindings:\n"
-		              " - ALt + escape      - exit this compositor\n"
-		              " - Alt + q           - close focused window\n"
-		              " - Alt + enter       - open a terminal\n"
-		              " - Alt + x           - sleep your system\n"
-		              " - Alt + w/s         - go to previous/next window\n"
-		              " - Alt + shift + w/s - swap with previous/next window\n"
-		              " - Alt + a           - show a list of open windows (hides as soon "
+		              " - ALt + escape - exit this compositor\n"
+		              " - Alt + q      - close focused window\n"
+		              " - Alt + enter  - open a terminal\n"
+		              " - Alt + x      - sleep your system\n"
+		              " - Alt + w/s    - go to previous/next window\n"
+		              " - Super + w/s  - swap with previous/next window\n"
+		              " - Alt + a      - show a list of open windows (hides as soon "
 		              "as you release alt)\n"
-		              " - Alt + n           - open nautilus\n"
-		              " - Alt + f           - open firefox\n"
-		              " - Alt + h           - open a help menu\n"
+		              " - Alt + n      - open nautilus\n"
+		              " - Alt + f      - open firefox\n"
+		              " - Alt + h      - open a help menu\n"
 		              "Other behaviours:\n"
-		              " - You can press alt and then tap and hold on a window with "
-		              "left click to drag it or right click to resize it\n"
+		              " - You can press alt and then tap and hold on a window with left "
+		              "click to drag it or right click to resize it\n"
 		              "\n"
+		              "                                 "
 		              "===========================================\n"
-		              "= Use the escape key to hide this message =\n"
+		              "                                 = Use the escape key to hide this "
+		              "message =\n"
+		              "                                 "
 		              "===========================================",
 		              TinywlMsgHelp);
 		break;
@@ -644,9 +647,9 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	return true;
 }
 
-static bool handle_altshiftbinding(struct tinywl_server *server, xkb_keysym_t sym) {
+static bool handle_logobinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	switch (sym) {
-	case XKB_KEY_W:
+	case XKB_KEY_w:
 		if (wl_list_length(&server->views) > 1) {
 			struct wl_list *previous = server->focused_view->link.prev->prev;
 			wl_list_remove(&server->focused_view->link);
@@ -654,7 +657,7 @@ static bool handle_altshiftbinding(struct tinywl_server *server, xkb_keysym_t sy
 		}
 		displayClientList(server);
 		break;
-	case XKB_KEY_S:
+	case XKB_KEY_s:
 		if (wl_list_length(&server->views) > 1) {
 			struct wl_list *next = server->focused_view->link.next;
 			wl_list_remove(&server->focused_view->link);
@@ -718,9 +721,9 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 				// If we succeeded in processing it the we should not pass the event
 				// to the client
 				return;
-		} else if (modifiers == (WLR_MODIFIER_ALT | WLR_MODIFIER_SHIFT)) {
+		} else if (modifiers == WLR_MODIFIER_LOGO) {
 			// If alt and shift are held down, do the same
-			if (handle_altshiftbinding(server, syms[nsyms - 1]))
+			if (handle_logobinding(server, syms[nsyms - 1]))
 				return;
 		} else if (!modifiers && syms[nsyms - 1] == XKB_KEY_Escape &&
 		           message_hide(server)) {
@@ -730,7 +733,16 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 		}
 	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
 		// if the alt modifier is being held and you release it
-		if (modifiers == WLR_MODIFIER_ALT && syms[0] == 65513) {
+		if (((modifiers == WLR_MODIFIER_LOGO && syms[0] == XKB_KEY_Super_L) ||
+		     (modifiers == WLR_MODIFIER_ALT && syms[0] == XKB_KEY_Alt_L)) &&
+		    server->message.type == TinywlMsgClientsList) {
+			// If we are displaying the clients list and we release alt or super
+			// (meaning we have picked our client) then focus it and
+			// hide the clients list
+			message_hide(server);
+			focus_view(server->focused_view);
+		}
+		if (modifiers == WLR_MODIFIER_ALT && syms[0] == XKB_KEY_Alt_L) {
 			if (!server->ignoreNextAltRelease) {
 				time_t t = time(0);
 
@@ -740,13 +752,6 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 				                "?  Use the alt + h keybinding for more help");
 
 				message_print(server, message, TinywlMsgHello);
-			}
-			if (server->message.type == TinywlMsgClientsList) {
-				// If we are displaying the clients list and we release alt
-				// (meaning we have picked our client) then focus it and
-				// hide the clients list
-				message_hide(server);
-				focus_view(server->focused_view);
 			}
 			server->ignoreNextAltRelease = false;
 			return;
