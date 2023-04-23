@@ -7,9 +7,12 @@
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_data_device.h>
+#include <wlr/types/wlr_screencopy_v1.h>
+#include <wlr/types/wlr_server_decoration.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
+#include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 
 //////////////////////////////////////////////////////
@@ -59,6 +62,7 @@ struct tinywl_server {
 	bool ignoreNextAltRelease;
 	struct tinywl_message message;
 
+	struct wlr_xdg_decoration_manager_v1 *xdg_decoration_mgr;
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_surface;
 	struct wl_list views;
@@ -325,6 +329,12 @@ static void killfocused(struct tinywl_server *server) {
 		wlr_xdg_toplevel_send_close(server->focused_view->xdg_toplevel);
 }
 
+void createClientSideDecoration(struct wl_listener *listener, void *data) {
+	struct wlr_xdg_toplevel_decoration_v1 *dec = data;
+	wlr_xdg_toplevel_decoration_v1_set_mode(dec,
+	                                        WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+}
+
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	// Called when the surface is mapped, or ready to display on-screen.
 	struct tinywl_view *view = wl_container_of(listener, view, map);
@@ -341,6 +351,10 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 		view->x = (parent_box.width - popup_box.width) / 2;
 		view->y = (parent_box.height - popup_box.height) / 2;
 		wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
+	} else if (makeWindowsTile) {
+		wlr_xdg_toplevel_set_tiled(view->xdg_toplevel, WLR_EDGE_TOP | WLR_EDGE_BOTTOM |
+		                                                       WLR_EDGE_LEFT |
+		                                                       WLR_EDGE_RIGHT);
 	}
 
 	if (view->server->focused_view)
@@ -610,7 +624,8 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		              " - Alt + x           - sleep your system\n"
 		              " - Alt + w/s         - go to previous/next window\n"
 		              " - Alt + shift + w/s - swap with previous/next window\n"
-		              " - Alt + a           - show a list of open windows (hides as soon as you release alt)\n"
+		              " - Alt + a           - show a list of open windows (hides as soon "
+		              "as you release alt)\n"
 		              " - Alt + n           - open nautilus\n"
 		              " - Alt + f           - open firefox\n"
 		              " - Alt + h           - open a help menu\n"
@@ -1262,6 +1277,7 @@ int main(int argc, char *argv[]) {
 	// request_set_selection event below.
 	wlr_compositor_create(server.wl_display, server.renderer);
 	wlr_subcompositor_create(server.wl_display);
+	wlr_screencopy_manager_v1_create(server.wl_display);
 	wlr_data_device_manager_create(server.wl_display);
 
 	// Creates an output layout, which a wlroots utility for working with an
@@ -1293,6 +1309,19 @@ int main(int argc, char *argv[]) {
 	server.xdg_shell = wlr_xdg_shell_create(server.wl_display, 3);
 	server.new_xdg_surface.notify = server_new_xdg_surface;
 	wl_signal_add(&server.xdg_shell->events.new_surface, &server.new_xdg_surface);
+
+	// Setup decoration to be either server or client side
+	if (disableClientSideDecorations) {
+		server.xdg_decoration_mgr = wlr_xdg_decoration_manager_v1_create(server.wl_display);
+		wlr_server_decoration_manager_set_default_mode(
+		        wlr_server_decoration_manager_create(server.wl_display),
+		        WLR_SERVER_DECORATION_MANAGER_MODE_SERVER);
+
+		static struct wl_listener new_xdg_decoration = {.notify =
+		                                                        createClientSideDecoration};
+		wl_signal_add(&server.xdg_decoration_mgr->events.new_toplevel_decoration,
+		              &new_xdg_decoration);
+	}
 
 	// Creates a cursor, which is a wlroots utility for tracking the cursor
 	// image shown on screen.
@@ -1389,9 +1418,10 @@ int main(int argc, char *argv[]) {
 	// Set the WAYLAND_DISPLAY environment variable to our socket
 	setenv("WAYLAND_DISPLAY", socket, true);
 
-	// Set ignore next keyrelease because c initialises it to a random value
+	// Set some variables because c initialises it to a random value
 	server.ignoreNextAltRelease = false;
 	server.focused_view = NULL;
+	server.message.type = TinywlMsgNone;
 
 	// Run the Wayland event loop. This does not return until you exit the
 	// compositor. Starting the backend rigged up all of the necessary event

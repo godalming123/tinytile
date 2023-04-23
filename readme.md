@@ -58,6 +58,7 @@ It is recomended that you change your keyboard layout from the default which is 
  - Drag icon protocol randomly crashes the compositor when your mouse is not hovering a surface
  - When resizing a client with a popup/parent it should keep the popup centered to the parent
  - Sometimes subsurfaces can go offscreen
+ - when you reorder windows and then release alt before shift the dialogue stays on screen
 # Done
  - Add font rendering using pango
  - Add a way to close windows with the keyboard
@@ -71,5 +72,6 @@ It is recomended that you change your keyboard layout from the default which is 
  - When dragging popup windows it should drag the parent instead
  - Use libinput to configure pointers
  - Switching windows in reverse focus order gives wierd behavior
+ - Add option to make windows both have or don't have CSD and wether windows should be set to tiled
 ## Implement protocols
  - Virtual keyboard (needs testing)
