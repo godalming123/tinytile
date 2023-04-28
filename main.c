@@ -163,6 +163,26 @@ static struct tinywl_view *getNextView(struct tinywl_server *server, bool wrap) 
 	return server->focused_view;
 }
 
+static inline struct wlr_output *getMonitorViewIsOn(struct tinywl_view *view) {
+	return wlr_output_layout_output_at(view->server->output_layout, view->x, view->y);
+}
+
+struct tinywl_view *getPopupViewFromParent(struct tinywl_view *parent_view) {
+	struct tinywl_view *popup_view;
+	wl_list_for_each (popup_view, &parent_view->server->views, link)
+		if (popup_view->xdg_toplevel->parent == parent_view->xdg_toplevel)
+			return popup_view;
+	return parent_view;
+}
+
+struct tinywl_view *getParentViewFromPopup(struct tinywl_view *popup_view) {
+	struct tinywl_view *parent_view;
+	wl_list_for_each (parent_view, &popup_view->server->views, link)
+		if (popup_view->xdg_toplevel->parent == parent_view->xdg_toplevel)
+			return parent_view;
+	return NULL;
+}
+
 static void displayClientList(struct tinywl_server *server) {
 	if (wl_list_length(&server->views) == 0)
 		message_print(server, "No clients open", TinywlMsgClientsList);
@@ -188,32 +208,13 @@ static void reset_cursor_mode(struct tinywl_server *server) {
 	server->grabbed_view = NULL;
 }
 
-static inline struct wlr_output *getMonitorViewIsOn(struct tinywl_view *view) {
-	return wlr_output_layout_output_at(view->server->output_layout, view->x, view->y);
-}
-
-struct tinywl_view *getPopupViewFromParent(struct tinywl_view *parent_view) {
-	struct tinywl_view *popup_view;
-	wl_list_for_each (popup_view, &parent_view->server->views, link)
-		if (popup_view->xdg_toplevel->parent == parent_view->xdg_toplevel)
-			return popup_view;
-	return parent_view;
-}
-
-struct tinywl_view *getParentViewFromPopup(struct tinywl_view *popup_view) {
-	struct tinywl_view *parent_view;
-	wl_list_for_each (parent_view, &popup_view->server->views, link)
-		if (popup_view->xdg_toplevel->parent == parent_view->xdg_toplevel)
-			return parent_view;
-	return NULL;
-}
-
 static struct tinywl_view *desktop_view_at(struct tinywl_server *server, double lx, double ly,
                                            struct wlr_surface **surface, double *sx, double *sy) {
 	// This returns the topmost node in the scene at the given layout
 	// coords. we only care about surface nodes as we are specifically
 	// looking for a surface in the surface tree of a tinywl_view.
-	struct wlr_scene_node *node = wlr_scene_node_at(&server->scene->tree.node, lx, ly, sx, sy);
+	struct wlr_scene_node *node =
+	        wlr_scene_node_at(&server->layers[LyrClients]->node, lx, ly, sx, sy);
 	if (node == NULL || node->type != WLR_SCENE_NODE_BUFFER) {
 		return NULL;
 	}
@@ -274,6 +275,24 @@ static void process_motion(struct tinywl_server *server, uint32_t time) {
 	}
 }
 
+static void setClientMaximised(struct tinywl_view *view, bool maximise) {
+	if (maximise) {
+		struct wlr_output *monitor = getMonitorViewIsOn(view);
+		struct wlr_output_layout_output *monitorLayoutOutput =
+		        wlr_output_layout_get(view->server->output_layout, monitor);
+
+		wlr_scene_node_set_position(&view->scene_tree->node, monitorLayoutOutput->x,
+		                            monitorLayoutOutput->y);
+		wlr_xdg_toplevel_set_size(view->xdg_toplevel, monitor->width, monitor->height);
+	} else {
+		wlr_scene_node_set_position(&view->scene_tree->node, view->x,
+		                            view->y);
+		wlr_xdg_toplevel_set_size(view->xdg_toplevel, 900,
+		                          700); // TODO: save the previous size and restore that
+	}
+	process_motion(view->server, 0);
+}
+
 static void focus_view(struct tinywl_view *parent_view) {
 	if (parent_view) {
 		struct tinywl_server *server = parent_view->server;
@@ -329,7 +348,7 @@ static void killfocused(struct tinywl_server *server) {
 		wlr_xdg_toplevel_send_close(server->focused_view->xdg_toplevel);
 }
 
-void createClientSideDecoration(struct wl_listener *listener, void *data) {
+static void createClientSideDecoration(struct wl_listener *listener, void *data) {
 	struct wlr_xdg_toplevel_decoration_v1 *dec = data;
 	wlr_xdg_toplevel_decoration_v1_set_mode(dec,
 	                                        WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
@@ -473,32 +492,21 @@ static void xdg_toplevel_request_resize(struct wl_listener *listener, void *data
 static void xdg_toplevel_request_maximize(struct wl_listener *listener, void *data) {
 	// This event is raised when a client would like to maximize itself,
 	// typically because the user clicked on the maximize button on
-	// client-side decorations. tinywl doesn't support maximization, but
-	// to conform to xdg-shell protocol we still must send a configure.
-	// wlr_xdg_surface_schedule_configure() is used to send an empty reply.
+	// client-side decorations.
 	struct tinywl_view *view = wl_container_of(listener, view, request_maximize);
+
+	setClientMaximised(view, view->xdg_toplevel->requested.maximized);
+	wlr_xdg_toplevel_set_maximized(view->xdg_toplevel, view->xdg_toplevel->requested.maximized);
+
 	wlr_xdg_surface_schedule_configure(view->xdg_toplevel->base);
 }
 
 static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *data) {
-	// Just as with request_maximize, we must send a configure here.
 	struct tinywl_view *view = wl_container_of(listener, view, request_fullscreen);
 
-	if (view->xdg_toplevel->requested.fullscreen) {
-		struct wlr_output *monitor = getMonitorViewIsOn(view);
-		struct wlr_output_layout_output *monitorLayoutOutput =
-		        wlr_output_layout_get(view->server->output_layout, monitor);
-
-		wlr_scene_node_set_position(&view->scene_tree->node, monitorLayoutOutput->x,
-		                            monitorLayoutOutput->y);
-		wlr_xdg_toplevel_set_size(view->xdg_toplevel, monitor->width, monitor->height);
-		wlr_xdg_toplevel_set_fullscreen(view->xdg_toplevel, 1);
-	} else {
-		wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
-		wlr_xdg_toplevel_set_size(view->xdg_toplevel, 900,
-		                          700); // TODO: save the previous size and restore that
-		wlr_xdg_toplevel_set_fullscreen(view->xdg_toplevel, 0);
-	}
+	setClientMaximised(view, view->xdg_toplevel->requested.fullscreen);
+	wlr_xdg_toplevel_set_fullscreen(view->xdg_toplevel,
+	                                view->xdg_toplevel->requested.fullscreen);
 
 	wlr_xdg_surface_schedule_configure(view->xdg_toplevel->base);
 }
@@ -590,6 +598,10 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	case XKB_KEY_a:
 		displayClientList(server);
 		break;
+	case XKB_KEY_f:
+		if (server->focused_view)
+			setClientMaximised(server->focused_view, 1);
+		break;
 	case XKB_KEY_w:
 		// Cycle to the previous view
 		if (wl_list_length(&server->views) > 1) {
@@ -611,8 +623,8 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	case XKB_KEY_n:
 		run("nautilus");
 		break;
-	case XKB_KEY_f:
-		run("firefox");
+	case XKB_KEY_b:
+		run("qutebrowser");
 		break;
 	case XKB_KEY_h:
 		message_print(server,
@@ -627,7 +639,8 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		              " - Alt + a      - show a list of open windows (hides as soon "
 		              "as you release alt)\n"
 		              " - Alt + n      - open nautilus\n"
-		              " - Alt + f      - open firefox\n"
+		              " - Alt + f      - resize a client to the whole screen\n"
+		              " - Alt + b      - open qutebrowser\n"
 		              " - Alt + h      - open a help menu\n"
 		              "Other behaviours:\n"
 		              " - You can press alt and then tap and hold on a window with left "
@@ -879,6 +892,7 @@ static void seat_request_cursor(struct wl_listener *listener, void *data) {
 	// This event is raised by the seat when a client provides a cursor image
 	struct wlr_seat_pointer_request_set_cursor_event *event = data;
 	struct wlr_seat_client *focused_client = server->seat->pointer_state.focused_client;
+
 	// This can be sent by any client, so we check to make sure this one is
 	// actually has pointer focus first.
 	if (focused_client == event->seat_client) {
@@ -1412,13 +1426,6 @@ int main(int argc, char *argv[]) {
 		wl_display_destroy(server.wl_display);
 		return 1;
 	}
-
-	// If we do not set the cursor position before making it appear then it will be at (0, 0)
-	// and then jump to (100, 100) when the user moves the mouse
-	wlr_cursor_warp_closest(server.cursor, NULL, server.cursor->x, server.cursor->y);
-
-	// Make the cursor appear on screen without needing to be moved
-	wlr_xcursor_manager_set_cursor_image(server.cursor_mgr, "left_ptr", server.cursor);
 
 	// Set the WAYLAND_DISPLAY environment variable to our socket
 	setenv("WAYLAND_DISPLAY", socket, true);

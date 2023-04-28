@@ -29,19 +29,7 @@ It is recomended that you change your keyboard layout from the default which is 
 5. run tinytile with the command `tinytile`
 
 # Usage
-## Default keybindings
- - **Alt + escape** - exit this compositor
- - **Alt + q** - close focused window
- - **Alt + enter** - Open alacritty (a terminal emulator)
- - **Alt + x** - sleep your system using systemctl
- - **ALt + w/s** - go to next/previous window
- - **Super + w/s** - swap with next/previous window
- - **Alt + a** - show a list of open windows (hides as soon as you release alt)
- - **Alt + n** - open nautilus
- - **Alt + f** - open firefox
- - **Alt + h** - open a help menu when in the compositor
-## Other behaviours
- - You can press alt and then tap and hold on a window with left click to drag it or right click to resize it
+- To see usage instructions launch the compositor and then press alt + h
 
 # Todo
 ## Implement protocols
@@ -55,7 +43,6 @@ It is recomended that you change your keyboard layout from the default which is 
  - Make new windows launch on the focused monitor rathor then 0, 0
 ## Fix bugs
  - Their is a momory leak when opening messages such as the hello message
- - Drag icon protocol randomly crashes the compositor when your mouse is not hovering a surface
  - When resizing a client with a popup/parent it should keep the popup centered to the parent
  - Sometimes subsurfaces can go offscreen
 # Done
@@ -66,6 +53,7 @@ It is recomended that you change your keyboard layout from the default which is 
  - Changing keymaps (currently we assume GB keymap)
  - Keybindings on release
  - Add fullscreen windows (the current implementation is very naive)
+ - Add maximised windows (the current implementation is also naive)
  - Use alt + mouse to drag/resize windows
  - When a window is closed the next window does not get focused
  - When dragging popup windows it should drag the parent instead
@@ -75,3 +63,4 @@ It is recomended that you change your keyboard layout from the default which is 
  - when you reorder windows and then release alt before shift the dialogue stays on screen (fixed by using mod to reorder windows instead of alt + shift)
 ## Implement protocols
  - Virtual keyboard (needs testing)
+ - Drag icon

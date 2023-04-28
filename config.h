@@ -8,7 +8,7 @@ const char font_description[] = "Mono 12";
 const bool wrapClientPicker = false;
 
 // Makes gtk windows stop rounding corners and also stops them from letting you resize them
-const bool makeWindowsTile = false;
+const bool makeWindowsTile = true;
 
 // Makes other windows such as alcritty stop drawing titlebars and resizing borders
 const bool disableClientSideDecorations = true;
