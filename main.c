@@ -590,7 +590,7 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		killfocused(server);
 		break;
 	case XKB_KEY_Return:
-		run("alacritty");
+		run(term_cmd);
 		break;
 	case XKB_KEY_x:
 		run("systemctl suspend");
@@ -620,11 +620,11 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		}
 		displayClientList(server);
 		break;
-	case XKB_KEY_n:
-		run("nautilus");
+	case XKB_KEY_e:
+		run(filemanager_cmd);
 		break;
 	case XKB_KEY_b:
-		run("qutebrowser");
+		run(browser_cmd);
 		break;
 	case XKB_KEY_h:
 		message_print(server,
@@ -632,15 +632,15 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		              "Keybindings:\n"
 		              " - ALt + escape - exit this compositor\n"
 		              " - Alt + q      - close focused window\n"
-		              " - Alt + enter  - open a terminal\n"
+		              " - Alt + enter  - open your terminal (set in config.h)\n"
 		              " - Alt + x      - sleep your system\n"
 		              " - Alt + w/s    - go to previous/next window\n"
 		              " - Super + w/s  - swap with previous/next window\n"
 		              " - Alt + a      - show a list of open windows (hides as soon "
 		              "as you release alt)\n"
-		              " - Alt + n      - open nautilus\n"
+		              " - Alt + e      - open your filemanager (set in config.g)\n"
 		              " - Alt + f      - resize a client to the whole screen\n"
-		              " - Alt + b      - open qutebrowser\n"
+		              " - Alt + b      - open your browser (set in config.h)\n"
 		              " - Alt + h      - open a help menu\n"
 		              "Other behaviours:\n"
 		              " - You can press alt and then tap and hold on a window with left "

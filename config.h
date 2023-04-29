@@ -4,6 +4,15 @@ const char keyboardLayout[] = "gb";
 // A monospace font is recomended because several menus rely on charecters being the same width
 const char font_description[] = "Mono 12";
 
+// The command to be ran when you press alt + return
+char term_cmd[] = "alacritty";
+
+// The command to be ran when you press alt + b
+char browser_cmd[] = "qutebrowser";
+
+// The command that is ran when you press alt + e
+char filemanager_cmd[] = "nautilus";
+
 // Wether to wrap around client picker from begining to end or vice versa
 const bool wrapClientPicker = false;
 
