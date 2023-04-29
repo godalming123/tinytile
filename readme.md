@@ -20,7 +20,7 @@ sudo dnf install wlroots-devel wayland-protocols-devel meson gcc pango-devel
 ```
 2. run `meson build`
 3. configure keyboard layout
-	It is recomended that you change your keyboard layout from the default which is gb to your keyboards layout. This can be changed by editing `config.h` and ounce you have started tinytile, it will only change again if you:
+	- It is recomended that you change your keyboard layout from the default which is gb to your keyboards layout. This can be changed by editing `config.h` and ounce you have started tinytile, it will only change again if you:
 		- modify `config.h`
 		- rerun `ninja -C build` and `ninja -C build install`
 		- relaunch tinytile.
