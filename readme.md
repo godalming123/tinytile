@@ -6,9 +6,9 @@ A fork of tinywl designed to be a simple base for a tiling WM (but currently we 
 	- wlroots
 	- wayland-protocols
 	- meson
-  - pango
-  - cairo
-  - alacritty (recommended but not techinically necersarry)
+	- pango
+	- cairo
+	- alacritty (recommended but not techinically necersarry)
 
 EG for arch:
 ```
@@ -20,10 +20,10 @@ sudo dnf install wlroots-devel wayland-protocols-devel meson gcc pango-devel
 ```
 2. run `meson build`
 3. configure keyboard layout
-It is recomended that you change your keyboard layout from the default which is gb to your keyboards layout. This can be changed by editing `config.h` and ounce you have started tinytile, it will only change again if you:
-  - modify `config.h`
-  - rerun `ninja -C build` and `ninja -C build install`
-  - relaunch tinytile.
+	It is recomended that you change your keyboard layout from the default which is gb to your keyboards layout. This can be changed by editing `config.h` and ounce you have started tinytile, it will only change again if you:
+		- modify `config.h`
+		- rerun `ninja -C build` and `ninja -C build install`
+		- relaunch tinytile.
 3. run `ninja -C build`
 4. run `ninja -C build install`
 5. run tinytile with the command `tinytile`
