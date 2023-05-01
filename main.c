@@ -14,9 +14,10 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 
-////////////////////////////////////////////////
-// STRUCTS AND ENUMS (these are all anotated) //
-////////////////////////////////////////////////
+/////////////////////////////////
+//      STRUCTS AND ENUMS      //
+// (anotated for brevity sake) //
+/////////////////////////////////
 
 // scene layers
 enum { TinywlLyrClients, TinywlLyrMessage, TinywlLyrDragIcon, NUM_TINYWL_LAYERS };
@@ -33,7 +34,6 @@ enum tinywl_message_type {
 	TinywlMsgHello,
 	TinywlMsgRun, // TODO
 	TinywlMsgClientsList,
-	TinywlMsgHelp,
 };
 
 struct tinywl_text_buffer {
@@ -44,7 +44,7 @@ struct tinywl_text_buffer {
 };
 
 struct tinywl_message {
-	struct tinywl_text_buffer *buffer;
+	struct tinywl_text_buffer buffer;
 	struct wlr_scene_buffer *message;
 	struct wl_surface *surface;
 	enum tinywl_message_type type;
@@ -1210,6 +1210,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	struct tinywl_output *output = calloc(1, sizeof(struct tinywl_output));
 	output->wlr_output = wlr_output;
 	output->server = server;
+
 	// Sets up a listener for the frame notify event.
 	output->frame.notify = output_frame;
 	wl_signal_add(&wlr_output->events.frame, &output->frame);

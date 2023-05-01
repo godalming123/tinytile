@@ -111,19 +111,16 @@ static const struct wlr_buffer_impl text_buffer_impl = {
         .end_data_ptr_access = text_buffer_end_data_ptr_access,
 };
 
-static struct tinywl_text_buffer *text_buffer_create(uint32_t width, uint32_t height, uint32_t stride) {
-	struct tinywl_text_buffer *buffer = calloc(1, sizeof(*buffer));
-	if (!buffer)
-		return NULL;
+static struct tinywl_text_buffer text_buffer_create(uint32_t width, uint32_t height, uint32_t stride) {
+	struct tinywl_text_buffer buffer;
 
-	wlr_buffer_init(&buffer->base, &text_buffer_impl, width, height);
-	buffer->format = DRM_FORMAT_ARGB8888;
-	buffer->stride = stride;
+	wlr_buffer_init(&buffer.base, &text_buffer_impl, width, height);
+	buffer.format = DRM_FORMAT_ARGB8888;
+	buffer.stride = stride;
 
-	buffer->data = malloc(buffer->stride * height);
-	if (buffer->data == NULL) {
-		free(buffer);
-		return NULL;
+	buffer.data = malloc(buffer.stride * height);
+	if (buffer.data == NULL) {
+		wlr_log(WLR_ERROR, "Failed to allocate tinywl_buffer data");
 	}
 
 	return buffer;
@@ -145,12 +142,12 @@ cairo_subpixel_order_t to_cairo_subpixel_order(const enum wl_output_subpixel sub
 	return CAIRO_SUBPIXEL_ORDER_DEFAULT;
 }
 
-struct tinywl_text_buffer *create_message_texture(const char *string, struct tinywl_output *output) {
+struct tinywl_text_buffer create_message_texture(const char *string, struct tinywl_output *output) {
 	// Create a cairo_t
 	cairo_surface_t *dummy_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
 	if (dummy_surface == NULL)
 		// This occurs when we are fuzzing. In that case, do nothing
-		return NULL;
+		wlr_log(WLR_ERROR, "Failed to create message dummy surface");
 	cairo_t *c = cairo_create(dummy_surface);
 
 	// Set font options
@@ -191,16 +188,15 @@ struct tinywl_text_buffer *create_message_texture(const char *string, struct tin
 
 	// Draw cairo surface to wlroots buffer
 	int stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width);
-	struct tinywl_text_buffer *buf = text_buffer_create(width, height, stride);
+	struct tinywl_text_buffer buf = text_buffer_create(width, height, stride);
 	void *data_ptr;
-	if (!wlr_buffer_begin_data_ptr_access(&buf->base, WLR_BUFFER_DATA_PTR_ACCESS_WRITE,
+	if (!wlr_buffer_begin_data_ptr_access(&buf.base, WLR_BUFFER_DATA_PTR_ACCESS_WRITE,
 	                                      &data_ptr, NULL, NULL)) {
 		wlr_log(WLR_ERROR, "Failed to get pointer access to message buffer");
-		return NULL;
 	}
 	unsigned char *data = cairo_image_surface_get_data(surface);
 	memcpy(data_ptr, data, stride * height);
-	wlr_buffer_end_data_ptr_access(&buf->base);
+	wlr_buffer_end_data_ptr_access(&buf.base);
 
 	// Cleanup cairo
 	cairo_surface_destroy(surface);
@@ -223,20 +219,16 @@ void message_print(struct tinywl_server *server, const char *text, enum tinywl_m
 	message_hide(server);
 
 	server->message.buffer = create_message_texture(text, output);
-	if (!server->message.buffer) {
-		wlr_log(WLR_ERROR, "Could not create message texture");
-		return;
-	}
 	server->message.type = type;
 
 	double scale = output->wlr_output->scale;
-	int width = server->message.buffer->base.width / scale;
-	int height = server->message.buffer->base.height / scale;
+	int width = server->message.buffer.base.width / scale;
+	int height = server->message.buffer.base.height / scale;
 	int x = (output->wlr_output->width - width) / 2;
 	int y = (output->wlr_output->height - height) / 2;
 
 	server->message.message =
-	        wlr_scene_buffer_create(server->layers[TinywlLyrMessage], &server->message.buffer->base);
+	        wlr_scene_buffer_create(server->layers[TinywlLyrMessage], &server->message.buffer.base);
 	wlr_scene_node_raise_to_top(&server->message.message->node);
 	wlr_scene_node_set_enabled(&server->message.message->node, true);
 	struct wlr_box output_box;
