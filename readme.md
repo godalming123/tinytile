@@ -29,25 +29,25 @@ This starts the compositor.
 
 # Usage
 **Keybindings:**
- - *General:*
-  - ALt + escape             - exit this compositor
-  - Alt + h                  - open the project usage instructions in a browser
-  - Alt + x                  - sleep your system
- - *Keybindings for managing clients:*
-  - Alt + q                  - close focused window
-  - Alt + f                  - toggle wether a client is maxmized
-  - Alt + w/s                - go to previous/next windows with a menu
-  - Super + w/s              - swap the focused window with the previous/next window (also with a menu)
-  - Alt + a                  - show a list of open windows (hides as soon as you release alt)
- - *Keybindings for moving/resizing clients:*
-  - Alt + shift + W/A/S/D    - move a client
-  - Alth + control + W/A/S/D - resize a client
- - *Keybindings to open apps:*
-  - Alt + enter              - open your terminal (set in config.h)
-  - Alt + e                  - open your filemanager (set in config.h)
-  - Alt + b                  - open your browser (set in config.h)
+    - *General:*
+        - ALt + escape             - exit this compositor
+        - Alt + h                  - open the project usage instructions in a browser
+        - Alt + x                  - sleep your system
+    - *Keybindings for managing clients:*
+        - Alt + q                  - close focused window
+        - Alt + f                  - toggle wether a client is maxmized
+        - Alt + w/s                - go to previous/next windows with a menu
+        - Super + w/s              - swap the focused window with the previous/next window (also with a menu)
+        - Alt + a                  - show a list of open windows (hides as soon as you release alt)
+    - *Keybindings for moving/resizing clients:*
+        - Alt + shift + W/A/S/D    - move a client
+        - Alt + control + W/A/S/D  - resize a client
+    - *Keybindings to open apps:*
+        - Alt + enter              - open your terminal (set in config.h)
+        - Alt + e                  - open your filemanager (set in config.h)
+        - Alt + b                  - open your browser (set in config.h)
 **Other behaviours:**
- - You can press alt and then tap and hold on a window with left click to drag it or right click to resize it
+    - You can press alt and then tap and hold on a window with left click to drag it or right click to resize it
 
 # Todo
 ## Feature additions
