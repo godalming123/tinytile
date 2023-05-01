@@ -7,6 +7,7 @@ A fork of tinywl designed to be a simple base for a tiling WM (but currently we 
 |--------|--------------------------------------------------------------------------------|
 | Arch   | `sudo pacman -S wlroots wayland-protocols meson pango`                         |
 | Fedora | `sudo dnf install wlroots-devel wayland-protocols-devel meson gcc pango-devel` |
+
 If your distro of choice is not on this list:
  1. Check that the distro packages wlroots 0.16 if not then you will have to compile wlroots yourself
  2. If your distro has wlroots 0.16 then you can create an issue and I will try to test your distro and see what packages you need to install
