@@ -84,14 +84,14 @@ void pango_print(cairo_t *cairo, const char *font, double scale, const char *tex
 //////////////////
 
 static void text_buffer_destroy(struct wlr_buffer *wlr_buffer) {
-	struct text_buffer *buffer = wl_container_of(wlr_buffer, buffer, base);
+	struct tinywl_text_buffer *buffer = wl_container_of(wlr_buffer, buffer, base);
 	free(buffer->data);
 	free(buffer);
 }
 
 static bool text_buffer_begin_data_ptr_access(struct wlr_buffer *wlr_buffer, uint32_t flags,
                                               void **data, uint32_t *format, size_t *stride) {
-	struct text_buffer *buffer = wl_container_of(wlr_buffer, buffer, base);
+	struct tinywl_text_buffer *buffer = wl_container_of(wlr_buffer, buffer, base);
 	if (data != NULL)
 		*data = (void *) buffer->data;
 	if (format != NULL)
@@ -111,8 +111,8 @@ static const struct wlr_buffer_impl text_buffer_impl = {
         .end_data_ptr_access = text_buffer_end_data_ptr_access,
 };
 
-static struct text_buffer *text_buffer_create(uint32_t width, uint32_t height, uint32_t stride) {
-	struct text_buffer *buffer = calloc(1, sizeof(*buffer));
+static struct tinywl_text_buffer *text_buffer_create(uint32_t width, uint32_t height, uint32_t stride) {
+	struct tinywl_text_buffer *buffer = calloc(1, sizeof(*buffer));
 	if (!buffer)
 		return NULL;
 
@@ -145,7 +145,7 @@ cairo_subpixel_order_t to_cairo_subpixel_order(const enum wl_output_subpixel sub
 	return CAIRO_SUBPIXEL_ORDER_DEFAULT;
 }
 
-struct text_buffer *create_message_texture(const char *string, struct tinywl_output *output) {
+struct tinywl_text_buffer *create_message_texture(const char *string, struct tinywl_output *output) {
 	// Create a cairo_t
 	cairo_surface_t *dummy_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
 	if (dummy_surface == NULL)
@@ -191,7 +191,7 @@ struct text_buffer *create_message_texture(const char *string, struct tinywl_out
 
 	// Draw cairo surface to wlroots buffer
 	int stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width);
-	struct text_buffer *buf = text_buffer_create(width, height, stride);
+	struct tinywl_text_buffer *buf = text_buffer_create(width, height, stride);
 	void *data_ptr;
 	if (!wlr_buffer_begin_data_ptr_access(&buf->base, WLR_BUFFER_DATA_PTR_ACCESS_WRITE,
 	                                      &data_ptr, NULL, NULL)) {
@@ -236,7 +236,7 @@ void message_print(struct tinywl_server *server, const char *text, enum tinywl_m
 	int y = (output->wlr_output->height - height) / 2;
 
 	server->message.message =
-	        wlr_scene_buffer_create(server->layers[LyrMessage], &server->message.buffer->base);
+	        wlr_scene_buffer_create(server->layers[TinywlLyrMessage], &server->message.buffer->base);
 	wlr_scene_node_raise_to_top(&server->message.message->node);
 	wlr_scene_node_set_enabled(&server->message.message->node, true);
 	struct wlr_box output_box;

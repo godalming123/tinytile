@@ -27,14 +27,32 @@ This installs the executable into `/usr/bin` for you.
 This starts the compositor.
 
 # Usage
- To see usage instructions launch the compositor and then press alt + h
+**Keybindings:**
+ - *General:*
+  - ALt + escape             - exit this compositor
+  - Alt + h                  - open the project usage instructions in a browser
+  - Alt + x                  - sleep your system
+ - *Keybindings for managing clients:*
+  - Alt + q                  - close focused window
+  - Alt + f                  - toggle wether a client is maxmized
+  - Alt + w/s                - go to previous/next windows with a menu
+  - Super + w/s              - swap the focused window with the previous/next window (also with a menu)
+  - Alt + a                  - show a list of open windows (hides as soon as you release alt)
+ - *Keybindings for moving/resizing clients:*
+  - Alt + shift + W/A/S/D    - move a client
+  - Alth + control + W/A/S/D - resize a client
+ - *Keybindings to open apps:*
+  - Alt + enter              - open your terminal (set in config.h)
+  - Alt + e                  - open your filemanager (set in config.h)
+  - Alt + b                  - open your browser (set in config.h)
+**Other behaviours:**
+ - You can press alt and then tap and hold on a window with left click to drag it or right click to resize it
 
 # Todo
 ## Feature additions
  - Sloppy focus
  - Tiling
  - Changing monitor configurations
- - Make new windows launch on the focused monitor rathor then 0, 0
 ## Bug fixes
  - Their is a momory leak when opening messages such as the hello message
  - When resizing a client with a popup/parent it should keep the popup centered to the parent
@@ -49,6 +67,7 @@ This starts the compositor.
  - Add configuration for pointers via libinput
  - Add fullscreen windows (the current implementation is very naive)
  - Add maximised windows (the current implementation is also naive)
+ - Make new windows launch on the center of the focused monitor
  - Make draging a popup drag the parent
  - Support changing keymaps in the config.h
  - Add font rendering using pango

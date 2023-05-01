@@ -13,6 +13,12 @@ char browser_cmd[] = "qutebrowser";
 // The command that is ran when you press alt + e
 char filemanager_cmd[] = "nautilus";
 
+// How far to move/resize windows with the keyboard
+int pixelsToMoveWindows = 45;
+
+// How big the cursor is
+int cursorSize = 24;
+
 // Wether to wrap around client picker from begining to end or vice versa
 const bool wrapClientPicker = false;
 

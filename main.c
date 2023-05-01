@@ -13,14 +13,13 @@
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
-#include <wlr/types/wlr_xdg_shell.h>
 
-//////////////////////////////////////////////////////
-// STRUCTS AND ENUMS (these are mostly anotated 👍) //
-//////////////////////////////////////////////////////
+////////////////////////////////////////////////
+// STRUCTS AND ENUMS (these are all anotated) //
+////////////////////////////////////////////////
 
 // scene layers
-enum { LyrClients, LyrMessage, LyrDragIcon, NUM_LAYERS };
+enum { TinywlLyrClients, TinywlLyrMessage, TinywlLyrDragIcon, NUM_TINYWL_LAYERS };
 
 enum tinywl_cursor_mode {
 	TINYWL_CURSOR_PASSTHROUGH,
@@ -37,7 +36,7 @@ enum tinywl_message_type {
 	TinywlMsgHelp,
 };
 
-struct text_buffer {
+struct tinywl_text_buffer {
 	struct wlr_buffer base;
 	void *data;
 	uint32_t format;
@@ -45,7 +44,7 @@ struct text_buffer {
 };
 
 struct tinywl_message {
-	struct text_buffer *buffer;
+	struct tinywl_text_buffer *buffer;
 	struct wlr_scene_buffer *message;
 	struct wl_surface *surface;
 	enum tinywl_message_type type;
@@ -57,7 +56,7 @@ struct tinywl_server {
 	struct wlr_renderer *renderer;
 	struct wlr_allocator *allocator;
 	struct wlr_scene *scene;
-	struct wlr_scene_tree *layers[NUM_LAYERS];
+	struct wlr_scene_tree *layers[NUM_TINYWL_LAYERS];
 
 	bool ignoreNextAltRelease;
 	struct tinywl_message message;
@@ -183,6 +182,12 @@ struct tinywl_view *getParentViewFromPopup(struct tinywl_view *popup_view) {
 	return NULL;
 }
 
+static void move_view(struct tinywl_view *view, int newX, int newY) {
+	view->x = newX;
+	view->y = newY;
+	wlr_scene_node_set_position(&view->scene_tree->node, newX, newY);
+}
+
 static void displayClientList(struct tinywl_server *server) {
 	if (wl_list_length(&server->views) == 0)
 		message_print(server, "No clients open", TinywlMsgClientsList);
@@ -214,7 +219,7 @@ static struct tinywl_view *desktop_view_at(struct tinywl_server *server, double 
 	// coords. we only care about surface nodes as we are specifically
 	// looking for a surface in the surface tree of a tinywl_view.
 	struct wlr_scene_node *node =
-	        wlr_scene_node_at(&server->layers[LyrClients]->node, lx, ly, sx, sy);
+	        wlr_scene_node_at(&server->layers[TinywlLyrClients]->node, lx, ly, sx, sy);
 	if (node == NULL || node->type != WLR_SCENE_NODE_BUFFER) {
 		return NULL;
 	}
@@ -275,9 +280,11 @@ static void process_motion(struct tinywl_server *server, uint32_t time) {
 	}
 }
 
-static void setClientMaximised(struct tinywl_view *view, bool maximise) {
+static void setClientMaximized(struct tinywl_view *view, bool maximise) {
 	if (maximise) {
 		struct wlr_output *monitor = getMonitorViewIsOn(view);
+		if (!monitor) // If the window is not within the bounds of any monitor then return
+			return;
 		struct wlr_output_layout_output *monitorLayoutOutput =
 		        wlr_output_layout_get(view->server->output_layout, monitor);
 
@@ -285,8 +292,7 @@ static void setClientMaximised(struct tinywl_view *view, bool maximise) {
 		                            monitorLayoutOutput->y);
 		wlr_xdg_toplevel_set_size(view->xdg_toplevel, monitor->width, monitor->height);
 	} else {
-		wlr_scene_node_set_position(&view->scene_tree->node, view->x,
-		                            view->y);
+		wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
 		wlr_xdg_toplevel_set_size(view->xdg_toplevel, 900,
 		                          700); // TODO: save the previous size and restore that
 	}
@@ -358,24 +364,33 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	// Called when the surface is mapped, or ready to display on-screen.
 	struct tinywl_view *view = wl_container_of(listener, view, map);
 
+	// Get location to place view for it to be centered
+	struct wlr_box view_box;
+	wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &view_box);
+
 	if (view->xdg_toplevel->parent) {
-		// If the view has a parent then get the size of it and its parent and use that
-		// information to position it
 		struct wlr_box parent_box;
 		wlr_xdg_surface_get_geometry(view->xdg_toplevel->parent->base, &parent_box);
+		view->x = (parent_box.width - view_box.width) / 2;
+		view->y = (parent_box.height - view_box.height) / 2;
+	} else {
+		struct wlr_output *output = wlr_output_layout_output_at(view->server->output_layout,
+		                                                        view->server->cursor->x,
+		                                                        view->server->cursor->y);
+		view->x = (output->width - view_box.width) / 2;
+		view->y = (output->height - view_box.height) / 2;
+	}
 
-		struct wlr_box popup_box;
-		wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &popup_box);
-
-		view->x = (parent_box.width - popup_box.width) / 2;
-		view->y = (parent_box.height - popup_box.height) / 2;
-		wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
-	} else if (makeWindowsTile) {
+	if (makeWindowsTile) {
 		wlr_xdg_toplevel_set_tiled(view->xdg_toplevel, WLR_EDGE_TOP | WLR_EDGE_BOTTOM |
 		                                                       WLR_EDGE_LEFT |
 		                                                       WLR_EDGE_RIGHT);
 	}
 
+	// Actually center it
+	wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
+
+	// Insert the view into the list of views
 	if (view->server->focused_view)
 		wl_list_insert(&view->server->focused_view->link, &view->link);
 	else
@@ -397,8 +412,8 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	if (view->server->focused_view == view && wl_list_length(&view->server->views) > 1) {
 		struct tinywl_view *view_to_be_focused = getPrevView(view->server, true);
 		wl_list_remove(&view->link);
-		// We do not need to process motion if we will change the focused view as the focus
-		// view function already does that for us
+		// We do not need to process motion if we will change the focused view as
+		// the focus view function already does that for us
 		focus_view(view_to_be_focused);
 	} else {
 		wl_list_remove(&view->link);
@@ -495,7 +510,7 @@ static void xdg_toplevel_request_maximize(struct wl_listener *listener, void *da
 	// client-side decorations.
 	struct tinywl_view *view = wl_container_of(listener, view, request_maximize);
 
-	setClientMaximised(view, view->xdg_toplevel->requested.maximized);
+	setClientMaximized(view, view->xdg_toplevel->requested.maximized);
 	wlr_xdg_toplevel_set_maximized(view->xdg_toplevel, view->xdg_toplevel->requested.maximized);
 
 	wlr_xdg_surface_schedule_configure(view->xdg_toplevel->base);
@@ -504,7 +519,7 @@ static void xdg_toplevel_request_maximize(struct wl_listener *listener, void *da
 static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *data) {
 	struct tinywl_view *view = wl_container_of(listener, view, request_fullscreen);
 
-	setClientMaximised(view, view->xdg_toplevel->requested.fullscreen);
+	setClientMaximized(view, view->xdg_toplevel->requested.fullscreen);
 	wlr_xdg_toplevel_set_fullscreen(view->xdg_toplevel,
 	                                view->xdg_toplevel->requested.fullscreen);
 
@@ -542,7 +557,7 @@ static void server_new_xdg_surface(struct wl_listener *listener, void *data) {
 		        view->xdg_toplevel->parent->base->data, view->xdg_toplevel->base);
 	else
 		// otherwise create it as part of the typical scene tree
-		view->scene_tree = wlr_scene_xdg_surface_create(server->layers[LyrClients],
+		view->scene_tree = wlr_scene_xdg_surface_create(server->layers[TinywlLyrClients],
 		                                                view->xdg_toplevel->base);
 	view->scene_tree->node.data = view;
 	xdg_surface->data = view->scene_tree;
@@ -577,11 +592,11 @@ static void server_new_xdg_surface(struct wl_listener *listener, void *data) {
 ////////////////////////////////////////
 
 static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
-	// Here we handle compositor keybindings where you press alt and nother key. This is when
-	// the compositor is processing keys, rather than passing them on to the client for its own
-	// processing. Note: returning true indicates the keybinding has been handled and will not
-	// be passed to the client, otherwise the keybinding will be passed to
-	// the client
+	// Here we handle compositor keybindings where you press alt and nother key. This is
+	// when the compositor is processing keys, rather than passing them on to the client
+	// for its own processing. Note: returning true indicates the keybinding has been
+	// handled and will not be passed to the client, otherwise the keybinding will be
+	// passed to the client
 	switch (sym) {
 	case XKB_KEY_Escape:
 		wl_display_terminate(server->wl_display);
@@ -599,8 +614,22 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		displayClientList(server);
 		break;
 	case XKB_KEY_f:
-		if (server->focused_view)
-			setClientMaximised(server->focused_view, 1);
+		if (server->focused_view) {
+			if (!server->focused_view->xdg_toplevel->current.fullscreen &&
+			    !server->focused_view->xdg_toplevel->current.maximized) {
+				setClientMaximized(server->focused_view, 1);
+				wlr_xdg_toplevel_set_maximized(server->focused_view->xdg_toplevel,
+				                               true);
+			} else {
+				setClientMaximized(server->focused_view, 0);
+				wlr_xdg_toplevel_set_fullscreen(server->focused_view->xdg_toplevel,
+				                                false);
+				wlr_xdg_toplevel_set_maximized(server->focused_view->xdg_toplevel,
+				                               false);
+			}
+			wlr_xdg_surface_schedule_configure(
+			        server->focused_view->xdg_toplevel->base);
+		}
 		break;
 	case XKB_KEY_w:
 		// Cycle to the previous view
@@ -627,32 +656,8 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		run(browser_cmd);
 		break;
 	case XKB_KEY_h:
-		message_print(server,
-		              "=== Usage instructions: ===\n"
-		              "Keybindings:\n"
-		              " - ALt + escape - exit this compositor\n"
-		              " - Alt + q      - close focused window\n"
-		              " - Alt + enter  - open your terminal (set in config.h)\n"
-		              " - Alt + x      - sleep your system\n"
-		              " - Alt + w/s    - go to previous/next window\n"
-		              " - Super + w/s  - swap with previous/next window\n"
-		              " - Alt + a      - show a list of open windows (hides as soon "
-		              "as you release alt)\n"
-		              " - Alt + e      - open your filemanager (set in config.g)\n"
-		              " - Alt + f      - resize a client to the whole screen\n"
-		              " - Alt + b      - open your browser (set in config.h)\n"
-		              " - Alt + h      - open a help menu\n"
-		              "Other behaviours:\n"
-		              " - You can press alt and then tap and hold on a window with left "
-		              "click to drag it or right click to resize it\n"
-		              "\n"
-		              "                                 "
-		              "===========================================\n"
-		              "                                 = Use the escape key to hide this "
-		              "message =\n"
-		              "                                 "
-		              "===========================================",
-		              TinywlMsgHelp);
+		run("xdg-open "
+		    "https://github.com/godalming123/tinytile/blob/0.16.x/readme.md#usage");
 		break;
 	default:
 		return false;
@@ -681,6 +686,63 @@ static bool handle_logobinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	default:
 		return false;
 	}
+	return true;
+}
+
+static bool handle_altctrl_binding(struct tinywl_server *server, xkb_keysym_t sym) {
+	if (server->focused_view) {
+		struct wlr_box geo_box;
+		wlr_xdg_surface_get_geometry(server->focused_view->xdg_toplevel->base, &geo_box);
+		switch (sym) {
+		case XKB_KEY_w:
+			wlr_xdg_toplevel_set_size(server->focused_view->xdg_toplevel, geo_box.width,
+			                          geo_box.height - pixelsToMoveWindows);
+			break;
+		case XKB_KEY_a:
+			wlr_xdg_toplevel_set_size(server->focused_view->xdg_toplevel,
+			                          geo_box.width - pixelsToMoveWindows,
+			                          geo_box.height);
+			break;
+		case XKB_KEY_s:
+			wlr_xdg_toplevel_set_size(server->focused_view->xdg_toplevel, geo_box.width,
+			                          geo_box.height + pixelsToMoveWindows);
+			break;
+		case XKB_KEY_d:
+			wlr_xdg_toplevel_set_size(server->focused_view->xdg_toplevel,
+			                          geo_box.width + pixelsToMoveWindows,
+			                          geo_box.height);
+			break;
+		default:
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool handle_altshift_biding(struct tinywl_server *server, xkb_keysym_t sym) {
+	if (server->focused_view)
+		switch (sym) {
+		case XKB_KEY_W:
+			move_view(server->focused_view, server->focused_view->x,
+			          server->focused_view->y - pixelsToMoveWindows);
+			break;
+		case XKB_KEY_A:
+			move_view(server->focused_view,
+			          server->focused_view->x - pixelsToMoveWindows,
+			          server->focused_view->y);
+			break;
+		case XKB_KEY_S:
+			move_view(server->focused_view, server->focused_view->x,
+			          server->focused_view->y + pixelsToMoveWindows);
+			break;
+		case XKB_KEY_D:
+			move_view(server->focused_view,
+			          server->focused_view->x + pixelsToMoveWindows,
+			          server->focused_view->y);
+			break;
+		default:
+			return false;
+		}
 	return true;
 }
 
@@ -715,8 +777,8 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 
 	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 		if ((modifiers & WLR_MODIFIER_ALT) && keycode != 64) {
-			// if the alt modifier is being held and you press a key that is not alt
-			// then we need to ignore the next keyrelease
+			// if the alt modifier is being held and you press a key that is not
+			// alt then we need to ignore the next keyrelease
 			server->ignoreNextAltRelease = true;
 		}
 		if (modifiers == (WLR_MODIFIER_ALT | WLR_MODIFIER_CTRL)) {
@@ -728,20 +790,29 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 					return;
 				}
 			}
+			if (handle_altctrl_binding(server, syms[nsyms - 1]))
+				// If we fail to process it and switch TTY attempt to process it as
+				// a compositor keybinding
+				return;
 		} else if (modifiers == WLR_MODIFIER_ALT) {
-			// If alt is held down, we attempt to process it as a compositor keybinding.
+			// If alt is held down, we attempt to process it as a compositor
+			// keybinding.
 			if (handle_altbinding(server, syms[nsyms - 1]))
-				// If we succeeded in processing it the we should not pass the event
-				// to the client
+				// If we succeeded in processing it the we should not pass
+				// the event to the client
 				return;
 		} else if (modifiers == WLR_MODIFIER_LOGO) {
-			// If alt and shift are held down, do the same
+			// If the logo key is held down, do the same
 			if (handle_logobinding(server, syms[nsyms - 1]))
+				return;
+		} else if (modifiers == (WLR_MODIFIER_ALT | WLR_MODIFIER_SHIFT)) {
+			// and the same for alt and shift
+			if (handle_altshift_biding(server, syms[nsyms - 1]))
 				return;
 		} else if (!modifiers && syms[nsyms - 1] == XKB_KEY_Escape &&
 		           message_hide(server)) {
-			// If we press escape and we are able to hide a popup message then we do not
-			// need to process the keypress as a compositor keybinding
+			// If we press escape and we are able to hide a popup message then
+			// we do not need to process the keypress as a compositor keybinding
 			return;
 		}
 	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
@@ -757,14 +828,19 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 		}
 		if (modifiers == WLR_MODIFIER_ALT && syms[0] == XKB_KEY_Alt_L) {
 			if (!server->ignoreNextAltRelease) {
-				time_t t = time(0);
+				if (server->message.type != TinywlMsgHello) {
+					time_t t = time(0);
 
-				char message[800] = "⏳️ ";
-				strcat(message, ctime(&t));
-				strcat(message, "🔍 Type to search (TODO)\n"
-				                "?  Use the alt + h keybinding for more help");
+					char message[800] = "⏳️ ";
+					strcat(message, ctime(&t));
+					strcat(message,
+					       "🔍 Type to search (TODO)\n"
+					       "?  Use the alt + h keybinding for more help");
 
-				message_print(server, message, TinywlMsgHello);
+					message_print(server, message, TinywlMsgHello);
+				} else {
+					message_hide(server);
+				}
 			}
 			server->ignoreNextAltRelease = false;
 			return;
@@ -848,6 +924,7 @@ static void server_new_pointer(struct tinywl_server *server, struct wlr_input_de
 			libinput_device_config_tap_set_enabled(libinput_device, 1);
 			libinput_device_config_tap_set_drag_enabled(libinput_device, 1);
 			libinput_device_config_tap_set_drag_lock_enabled(libinput_device, 1);
+
 			libinput_device_config_tap_set_button_map(libinput_device,
 			                                          LIBINPUT_CONFIG_TAP_MAP_LRM);
 			if (libinput_device_config_scroll_has_natural_scroll(libinput_device))
@@ -896,20 +973,13 @@ static void seat_request_cursor(struct wl_listener *listener, void *data) {
 	// This can be sent by any client, so we check to make sure this one is
 	// actually has pointer focus first.
 	if (focused_client == event->seat_client) {
-		// Once we've vetted the client, we can tell the cursor to use the provided surface
-		// as the cursor image. It will set the hardware cursor on the output that it's
-		// currently on and continue to do so as the cursor moves between outputs.
+		// Once we've vetted the client, we can tell the cursor to use the provided
+		// surface as the cursor image. It will set the hardware cursor on the
+		// output that it's currently on and continue to do so as the cursor moves
+		// between outputs.
 		wlr_cursor_set_surface(server->cursor, event->surface, event->hotspot_x,
 		                       event->hotspot_y);
 	}
-}
-
-static void process_cursor_move(struct tinywl_server *server, uint32_t time) {
-	// Move the grabbed view to the new position.
-	struct tinywl_view *view = server->grabbed_view;
-	view->x = server->cursor->x - server->grab_x;
-	view->y = server->cursor->y - server->grab_y;
-	wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
 }
 
 static void process_cursor_resize(struct tinywl_server *server, uint32_t time) {
@@ -954,9 +1024,7 @@ static void process_cursor_resize(struct tinywl_server *server, uint32_t time) {
 
 	struct wlr_box geo_box;
 	wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &geo_box);
-	view->x = new_left - geo_box.x;
-	view->y = new_top - geo_box.y;
-	wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
+	move_view(view, new_left - geo_box.x, new_top - geo_box.y);
 
 	int new_width = new_right - new_left;
 	int new_height = new_bottom - new_top;
@@ -971,9 +1039,10 @@ static void update_drag_icon_position(struct tinywl_server *server) {
 }
 
 static void process_cursor_motion(struct tinywl_server *server, uint32_t time) {
-	// If the mode is non-passthrough, delegate to those functions.
+	// If the mode is non-passthrough, then process the motion.
 	if (server->cursor_mode == TINYWL_CURSOR_MOVE) {
-		process_cursor_move(server, time);
+		move_view(server->grabbed_view, server->cursor->x - server->grab_x,
+		          server->cursor->y - server->grab_y);
 		return;
 	} else if (server->cursor_mode == TINYWL_CURSOR_RESIZE) {
 		process_cursor_resize(server, time);
@@ -983,9 +1052,9 @@ static void process_cursor_motion(struct tinywl_server *server, uint32_t time) {
 	// Update drag icons position if any
 	update_drag_icon_position(server);
 
-	// Otherwise, find the view under the pointer and send the event along. This code has been
-	// this code is seperated into a function because it can be called when for example the
-	// pointerfocused client in unmapped
+	// Otherwise, find the view under the pointer and send the event along. This code is
+	// seperated into a function because it can be called when for example the pointerfocused
+	// client in unmapped
 	process_motion(server, time);
 }
 
@@ -1114,8 +1183,8 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 }
 
 static void server_new_output(struct wl_listener *listener, void *data) {
-	// This event is raised by the backend when a new output (aka a display
-	// or monitor) becomes available.
+	// This event is raised by the backend when a new output (aka a display or monitor) becomes
+	// available.
 	struct tinywl_server *server = wl_container_of(listener, server, new_output);
 	struct wlr_output *wlr_output = data;
 
@@ -1224,8 +1293,8 @@ void seat_start_drag(struct wl_listener *listener, void *data) {
 	if (!drag->icon)
 		return;
 
-	drag->icon->data =
-	        wlr_scene_subsurface_tree_create(server->layers[LyrDragIcon], drag->icon->surface);
+	drag->icon->data = wlr_scene_subsurface_tree_create(server->layers[TinywlLyrDragIcon],
+	                                                    drag->icon->surface);
 	update_drag_icon_position(server);
 	static struct wl_listener drag_icon_destroy = {.notify = destroyDragIcon};
 	wl_signal_add(&drag->icon->events.destroy, &drag_icon_destroy);
@@ -1236,94 +1305,90 @@ void seat_start_drag(struct wl_listener *listener, void *data) {
 ///////////////
 
 int main(int argc, char *argv[]) {
-	wlr_log_init(WLR_DEBUG, NULL);
-
-	for (int _ = 1; _ < argc; _++) {
-		if (!strcmp(argv[_], "about")) {
-			fprintf(stderr, "A fork of tinywl with some additional features based on "
-			                "wlroots 0.16\n");
-		} else {
-			fprintf(stderr,
-			        "%s is not a valid option, use the `about` command to see info\n",
-			        argv[_]);
+	if (argc > 1) {
+		if (!strcmp(argv[1], "about")) {
+			printf("A fork of tinywl with some additional features based on wlroots "
+			       "0.16\n");
+			return EXIT_SUCCESS;
 		}
-		exit(EXIT_SUCCESS); // exit after passing the first arg
+		fprintf(stderr,
+		        "%s is not a valid option, use the `about` command to see some info\n",
+		        argv[1]);
+		return EXIT_FAILURE;
 	}
 
 	struct tinywl_server server;
-	// The Wayland display is managed by libwayland. It handles accepting
-	// clients from the Unix socket, manging Wayland globals, and so on.
+
+	// This is a wlrotos utility for managing logs
+	wlr_log_init(WLR_DEBUG, NULL);
+
+	// The Wayland display is managed by libwayland. It handles accepting clients from the Unix
+	// socket, manging Wayland globals, and so on.
 	server.wl_display = wl_display_create();
-	// The backend is a wlroots feature which abstracts the underlying input
-	// and output hardware. The autocreate option will choose the most
-	// suitable backend based on the current environment, such as opening an
-	// X11 window if an X11 server is running.
+
+	// The backend is a wlroots feature which abstracts the underlying input and output
+	// hardware. The autocreate option will choose the most suitable backend based on the
+	// current environment, such as opening an X11 window if an X11 server is running.
 	server.backend = wlr_backend_autocreate(server.wl_display);
 	if (server.backend == NULL) {
-		wlr_log(WLR_ERROR, "failed to create wlr_backend");
-		return 1;
+		wlr_log(WLR_ERROR, "Failed to create wlr_backend");
+		return EXIT_FAILURE;
 	}
 
-	// Autocreates a renderer, either Pixman, GLES2 or Vulkan for us. The
-	// user can also specify a renderer using the WLR_RENDERER env var. The
-	// renderer is responsible for defining the various pixel formats it
-	// supports for shared memory, this configures that for clients.
+	// Autocreates a renderer, either Pixman, GLES2 or Vulkan for us. The user can also specify
+	// a renderer using the WLR_RENDERER env var. The renderer is responsible for defining the
+	// various pixel formats it supports for shared memory, this configures that for clients.
 	server.renderer = wlr_renderer_autocreate(server.backend);
 	if (server.renderer == NULL) {
-		wlr_log(WLR_ERROR, "failed to create wlr_renderer");
-		return 1;
+		wlr_log(WLR_ERROR, "Failed to create wlr_renderer");
+		return EXIT_FAILURE;
 	}
-
 	wlr_renderer_init_wl_display(server.renderer, server.wl_display);
 
-	// Autocreates an allocator for us.
-	// The allocator is the bridge between the renderer and the backend. It
-	// handles the buffer creation, allowing wlroots to render onto the
-	// screen
+	// Autocreates an allocator for us. The allocator is the bridge between the renderer and the
+	// backend. It handles the buffer creation, allowing wlroots to render onto the screen
 	server.allocator = wlr_allocator_autocreate(server.backend, server.renderer);
 	if (server.allocator == NULL) {
-		wlr_log(WLR_ERROR, "failed to create wlr_allocator");
+		wlr_log(WLR_ERROR, "Failed to create wlr_allocator");
 		return 1;
 	}
 
-	// This creates some hands-off wlroots interfaces. The compositor is
-	// necessary for clients to allocate surfaces, the subcompositor allows
-	// to assign the role of subsurfaces to surfaces and the data device
-	// manager handles the clipboard. Each of these wlroots interfaces has
-	// room for you to dig your fingers in and play with their behavior if
-	// you want. Note that the clients cannot set the selection directly
-	// without compositor approval, see the handling of the
-	// request_set_selection event below.
+	// This creates some hands-off wlroots interfaces:
+	//  - The compositor is necessary for clients to allocate surfaces
+	//  - The subcompositor allows to assign the role of subsurfaces to surfaces
+	//  - The screencopy manager allows for a protocol to copy/record:
+	//     - a portion of a screen
+	//     - a client
+	//     - every screen at ounce into one image
+	//  - The data device manager handles the clipboard
+	// Each of these wlroots interfaces has room for you to dig your fingers in and play with
+	// their behavior if you want. Note that the clients cannot set the selection directly
+	// without compositor approval, see the handling of the request_set_selection event below.
 	wlr_compositor_create(server.wl_display, server.renderer);
 	wlr_subcompositor_create(server.wl_display);
 	wlr_screencopy_manager_v1_create(server.wl_display);
 	wlr_data_device_manager_create(server.wl_display);
 
-	// Creates an output layout, which a wlroots utility for working with an
-	// arrangement of screens in a physical layout.
+	// Creates an output layout, which a wlroots utility for working with an arrangement of
+	// screens in a physical layout.
 	server.output_layout = wlr_output_layout_create();
 
-	// Configure a listener to be notified when new outputs are available on
-	// the backend.
+	// Configure a listener to be notified when new outputs are available on the backend.
 	wl_list_init(&server.outputs);
 	server.new_output.notify = server_new_output;
 	wl_signal_add(&server.backend->events.new_output, &server.new_output);
 
-	// Create a scene graph. This is a wlroots abstraction that handles all
-	// rendering and damage tracking. All the compositor author needs to do
-	// is add things that should be rendered to the scene graph at the
-	// proper positions and then call wlr_scene_output_commit() to render a
-	// frame if necessary.
+	// Create a scene graph. This is a wlroots abstraction that handles all rendering and damage
+	// tracking. All the compositor author needs to do is add things that should be rendered to
+	// the scene graph at the proper positions and then call wlr_scene_output_commit() to render
+	// a frame if necessary.
 	server.scene = wlr_scene_create();
-	for (int _ = 0; _ < NUM_LAYERS; _++)
+	for (int _ = 0; _ < NUM_TINYWL_LAYERS; _++)
 		server.layers[_] = wlr_scene_tree_create(&server.scene->tree);
 	wlr_scene_attach_output_layout(server.scene, server.output_layout);
 
-	// Set up xdg-shell version 3. The xdg-shell is a Wayland protocol which
-	// is used for application clients. For more detail on shells, refer to
-	// my article:
-	//
-	// https://drewdevault.com/2018/07/29/Wayland-shells.html
+	// Set up xdg-shell version 3. The xdg-shell is a Wayland protocol which is used for
+	// application clients.
 	wl_list_init(&server.views);
 	server.xdg_shell = wlr_xdg_shell_create(server.wl_display, 3);
 	server.new_xdg_surface.notify = server_new_xdg_surface;
@@ -1342,30 +1407,23 @@ int main(int argc, char *argv[]) {
 		              &new_xdg_decoration);
 	}
 
-	// Creates a cursor, which is a wlroots utility for tracking the cursor
-	// image shown on screen.
+	// Creates a cursor, which is a wlroots utility for tracking the cursor image shown on
+	// screen.
 	server.cursor = wlr_cursor_create();
 	wlr_cursor_attach_output_layout(server.cursor, server.output_layout);
 
-	// Creates an xcursor manager, another wlroots utility which loads up
-	// Xcursor themes to source cursor images from and makes sure that
-	// cursor images are available at all scale factors on the screen
-	// (necessary for HiDPI support). We add a cursor theme at scale factor
-	// 1 to begin with. */
-	server.cursor_mgr = wlr_xcursor_manager_create(NULL, 24);
+	// Creates an xcursor manager, another wlroots utility which loads up Xcursor themes to
+	// source cursor images from and makes sure that cursor images are available at all scale
+	// factors on the screen (necessary for HiDPI support). We add a cursor theme at scale
+	// factor 1 to begin with.
+	server.cursor_mgr = wlr_xcursor_manager_create(NULL, cursorSize);
 	wlr_xcursor_manager_load(server.cursor_mgr, 1);
 
-	// wlr_cursor *only* displays an image on screen. It does not move
-	// around when the pointer moves. However, we can attach input devices
-	// to it, and it will generate aggregate events for all of them. In
-	// these events, we can choose how we want to process them, forwarding
-	// them to clients and moving the cursor around. More detail on this
-	// process is described in my input handling blog post:
-	//
-	// https://drewdevault.com/2018/07/17/Input-handling-in-wlroots.html
-	//
-	// And more comments are sprinkled throughout the notify functions
-	// above.
+	// wlr_cursor *only* displays an image on screen. It does not move around when the pointer
+	// moves. However, we can attach input devices to it, and it will generate aggregate events
+	// for all of them. In these events, we can choose how we want to process them, forwarding
+	// them to clients and moving the cursor around. More comments are also sprinkled throughout
+	// the notify functions above.
 	server.cursor_mode = TINYWL_CURSOR_PASSTHROUGH;
 
 	server.cursor_motion.notify = server_cursor_motion;
@@ -1383,10 +1441,10 @@ int main(int argc, char *argv[]) {
 	server.cursor_frame.notify = server_cursor_frame;
 	wl_signal_add(&server.cursor->events.frame, &server.cursor_frame);
 
-	// Configures a seat, which is a single "seat" at which a user sits and
-	// operates the computer. This conceptually includes up to one keyboard,
-	// pointer, touch, and drawing tablet device. We also rig up a listener
-	// to let us know when new input devices are available on the backend.
+	// Configures a seat, which is a single "seat" at which a user sits and operates the
+	// computer. This conceptually includes up to one keyboard, pointer, touch, and drawing
+	// tablet device. We also rig up a listener to let us know when new input devices are
+	// available on the backend.
 	wl_list_init(&server.keyboards);
 
 	server.new_input.notify = server_new_input;
@@ -1419,8 +1477,7 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	// Start the backend. This will enumerate outputs and inputs, become the
-	// DRM master, etc
+	// Start the backend. This will enumerate outputs and inputs, become the DRM master, etc
 	if (!wlr_backend_start(server.backend)) {
 		wlr_backend_destroy(server.backend);
 		wl_display_destroy(server.wl_display);
@@ -1435,15 +1492,16 @@ int main(int argc, char *argv[]) {
 	server.focused_view = NULL;
 	server.message.type = TinywlMsgNone;
 
-	// Run the Wayland event loop. This does not return until you exit the
-	// compositor. Starting the backend rigged up all of the necessary event
-	// loop configuration to listen to libinput events, DRM events, generate
-	// frame events at the refresh rate, and so on.
+	// Run the Wayland event loop. This does not return until you exit the compositor. Starting
+	// the backend rigged up all of the necessary event loop configuration to listen to libinput
+	// events, DRM events, generate frame events at the refresh rate, and so on.
 	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s", socket);
 	wl_display_run(server.wl_display);
 
 	// Once wl_display_run returns, we shut down the server.
 	wl_display_destroy_clients(server.wl_display);
 	wl_display_destroy(server.wl_display);
-	return 0;
+
+	// Exit
+	return EXIT_SUCCESS;
 }
