@@ -54,6 +54,7 @@ This starts the compositor.
     - Alt + enter              - open your terminal (set in config.h)
     - Alt + e                  - open your filemanager (set in config.h)
     - Alt + b                  - open your browser (set in config.h)
+
 **Other behaviours:**
  - You can press alt and then tap and hold on a window with left click to drag it or right click to resize it
 
