@@ -526,8 +526,8 @@ static void xdg_toplevel_request_maximize(struct wl_listener *listener, void *da
 static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *data) {
 	struct tinywl_view *view = wl_container_of(listener, view, request_fullscreen);
 
-	if ((view->xdg_toplevel->requested.maximized && maximizeView(view)) ||
-	    (!view->xdg_toplevel->requested.maximized && unmaximizeView(view)))
+	if ((view->xdg_toplevel->requested.fullscreen && maximizeView(view)) ||
+	    (!view->xdg_toplevel->requested.fullscreen && unmaximizeView(view)))
 		wlr_xdg_toplevel_set_fullscreen(view->xdg_toplevel,
 		                                view->xdg_toplevel->requested.fullscreen);
 
