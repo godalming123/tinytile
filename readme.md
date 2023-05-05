@@ -81,15 +81,15 @@ This starts the compositor.
  - Add fullscreen windows
  - Add maximised windows
  - Make new windows launch on the center of the focused monitor
- - Make draging a popup drag the parent
+ - Make draging a popup drag the parent instead
  - Support changing keymaps in the config.h
  - Add font rendering using pango
  - Implement keybindings for basic desktop usage such as:
     - Closing windows
     - Switching windows with a window list
     - Rearranging windows also with a window list
-    - Making windows take up the whole screen
-    - A keybinding to open the browser on this projects help page
+    - Maximizing windows
+    - A keybinding to open the browser to this projects help page
     - Moving/resizing windows with alt+mouse
     - Moving/resizing windows with the keyboard
     - Launching a terminal, browser, and file explorer
