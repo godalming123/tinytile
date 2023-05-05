@@ -69,6 +69,7 @@ This starts the compositor.
  - Their is a momory leak when opening messages such as the hello message
  - When resizing a client with a popup/parent it should keep the popup centered to the parent
  - Sometimes subsurfaces can go offscreen
+ - Clients behave wierdly when you try to resize one that is either fullscreen or maximized
 
 # Done
  - Use meson instead of ninja
@@ -77,8 +78,8 @@ This starts the compositor.
  - Cursor pressed move off surface fix
  - Make closing one window focus the next
  - Add configuration for pointers via libinput
- - Add fullscreen windows (the current implementation is very naive)
- - Add maximised windows (the current implementation is also naive)
+ - Add fullscreen windows
+ - Add maximised windows
  - Make new windows launch on the center of the focused monitor
  - Make draging a popup drag the parent
  - Support changing keymaps in the config.h

@@ -114,7 +114,7 @@ struct tinywl_view {
 	struct wl_listener request_resize;
 	struct wl_listener request_maximize;
 	struct wl_listener request_fullscreen;
-	int x, y;
+	int x, y, width, height;
 };
 
 struct tinywl_keyboard {
@@ -190,6 +190,12 @@ static void move_view(struct tinywl_view *view, int newX, int newY) {
 	view->x = newX;
 	view->y = newY;
 	wlr_scene_node_set_position(&view->scene_tree->node, newX, newY);
+}
+
+static void resize_view(struct tinywl_view *view, int newWidth, int newHeight) {
+	view->width = newWidth;
+	view->height = newHeight;
+	wlr_xdg_toplevel_set_size(view->xdg_toplevel, newWidth, newHeight);
 }
 
 static void displayClientList(struct tinywl_server *server) {
@@ -299,8 +305,7 @@ static bool maximizeView(struct tinywl_view *view) {
 
 static bool unmaximizeView(struct tinywl_view *view) {
 	wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
-	// TODO: save the previous size and restore that
-	wlr_xdg_toplevel_set_size(view->xdg_toplevel, 900, 700);
+	wlr_xdg_toplevel_set_size(view->xdg_toplevel, view->width, view->height);
 	return true;
 }
 
@@ -527,9 +532,12 @@ static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *
 	struct tinywl_view *view = wl_container_of(listener, view, request_fullscreen);
 
 	if ((view->xdg_toplevel->requested.fullscreen && maximizeView(view)) ||
-	    (!view->xdg_toplevel->requested.fullscreen && unmaximizeView(view)))
+	    (!view->xdg_toplevel->requested.fullscreen))
 		wlr_xdg_toplevel_set_fullscreen(view->xdg_toplevel,
 		                                view->xdg_toplevel->requested.fullscreen);
+
+	if (!view->xdg_toplevel->requested.fullscreen && !view->xdg_toplevel->current.maximized)
+		unmaximizeView(view);
 
 	wlr_xdg_surface_schedule_configure(view->xdg_toplevel->base);
 }
@@ -702,22 +710,20 @@ static bool handle_altctrl_binding(struct tinywl_server *server, xkb_keysym_t sy
 		wlr_xdg_surface_get_geometry(server->focused_view->xdg_toplevel->base, &geo_box);
 		switch (sym) {
 		case XKB_KEY_w:
-			wlr_xdg_toplevel_set_size(server->focused_view->xdg_toplevel, geo_box.width,
-			                          geo_box.height - pixelsToMoveWindows);
+			resize_view(server->focused_view, geo_box.width,
+			            geo_box.height - pixelsToMoveWindows);
 			break;
 		case XKB_KEY_a:
-			wlr_xdg_toplevel_set_size(server->focused_view->xdg_toplevel,
-			                          geo_box.width - pixelsToMoveWindows,
-			                          geo_box.height);
+			resize_view(server->focused_view, geo_box.width - pixelsToMoveWindows,
+			            geo_box.height);
 			break;
 		case XKB_KEY_s:
-			wlr_xdg_toplevel_set_size(server->focused_view->xdg_toplevel, geo_box.width,
-			                          geo_box.height + pixelsToMoveWindows);
+			resize_view(server->focused_view, geo_box.width,
+			            geo_box.height + pixelsToMoveWindows);
 			break;
 		case XKB_KEY_d:
-			wlr_xdg_toplevel_set_size(server->focused_view->xdg_toplevel,
-			                          geo_box.width + pixelsToMoveWindows,
-			                          geo_box.height);
+			resize_view(server->focused_view, geo_box.width + pixelsToMoveWindows,
+			            geo_box.height);
 			break;
 		default:
 			return false;
@@ -792,7 +798,8 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 			// to ignore the next keyrelease
 			server->ignoreNextAltRelease = true;
 		}
-		if (modifiers == (WLR_MODIFIER_ALT | WLR_MODIFIER_CTRL)) {
+		switch (modifiers) {
+		case WLR_MODIFIER_ALT | WLR_MODIFIER_CTRL:
 			// In wlroots we must handle switching
 			// virtual terminals ourselves
 			for (unsigned int _ = 0; _ < 12; _++) {
@@ -807,7 +814,8 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 				// switch TTY attempt to process it
 				// as a compositor keybinding
 				return;
-		} else if (modifiers == WLR_MODIFIER_ALT) {
+			break;
+		case WLR_MODIFIER_ALT:
 			// If alt is held down, we attempt to
 			// process it as a compositor keybinding.
 			if (handle_altbinding(server, syms[nsyms - 1]))
@@ -815,21 +823,24 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 				// the we should not pass the event
 				// to the client
 				return;
-		} else if (modifiers == WLR_MODIFIER_LOGO) {
+			break;
+		case WLR_MODIFIER_LOGO:
 			// If the logo key is held down, do the same
 			if (handle_logobinding(server, syms[nsyms - 1]))
 				return;
-		} else if (modifiers == (WLR_MODIFIER_ALT | WLR_MODIFIER_SHIFT)) {
+			break;
+		case WLR_MODIFIER_ALT | WLR_MODIFIER_SHIFT:
 			// and the same for alt and shift
 			if (handle_altshift_biding(server, syms[nsyms - 1]))
 				return;
-		} else if (!modifiers && syms[nsyms - 1] == XKB_KEY_Escape &&
-		           message_hide(server)) {
-			// If we press escape and we are able to
-			// hide a popup message then we do not need
-			// to process the keypress as a compositor
-			// keybinding
-			return;
+			break;
+		default:
+			if (!modifiers && syms[nsyms - 1] == XKB_KEY_Escape && message_hide(server))
+				// If we press escape and we are able to
+				// hide a popup message then we do not need
+				// to process the keypress as a compositor
+				// keybinding
+				return;
 		}
 	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
 		// if the alt modifier is being held and you release
@@ -851,11 +862,9 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 
 					char message[800] = "⏳️ ";
 					strcat(message, ctime(&t));
-					strcat(message, "🔍 Type to search "
-					                "(TODO)\n"
-					                "?  Use the alt + h "
-					                "keybinding for "
-					                "more help");
+					strcat(message,
+					       "🔍 Type to search (TODO)\n"
+					       "?  Use the alt + h keybinding for more help");
 
 					message_print(server, message, TinywlMsgHello);
 				} else {
@@ -1050,10 +1059,7 @@ static void process_cursor_resize(struct tinywl_server *server, uint32_t time) {
 	struct wlr_box geo_box;
 	wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &geo_box);
 	move_view(view, new_left - geo_box.x, new_top - geo_box.y);
-
-	int new_width = new_right - new_left;
-	int new_height = new_bottom - new_top;
-	wlr_xdg_toplevel_set_size(view->xdg_toplevel, new_width, new_height);
+	resize_view(view, new_right - new_left, new_bottom - new_top);
 }
 
 static void update_drag_icon_position(struct tinywl_server *server) {
@@ -1288,6 +1294,7 @@ static void server_new_input(struct wl_listener *listener, void *data) {
 	default:
 		break;
 	}
+
 	// We need to let the wlr_seat know what our capabilities
 	// are, which is communiciated to the client. In TinyWL we
 	// always have a cursor, even if there are no pointer
