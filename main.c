@@ -377,6 +377,8 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	// Get location to place view for it to be centered
 	struct wlr_box view_box;
 	wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &view_box);
+	view->width = view_box.width;
+	view->height = view_box.height;
 
 	if (view->xdg_toplevel->parent) {
 		struct wlr_box parent_box;
