@@ -634,8 +634,8 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	case XKB_KEY_f:
 		if (server->focused_view) {
 			if (!viewUsesWholeScreen(server->focused_view)) {
-				maximizeView(server->focused_view);
-				wlr_xdg_toplevel_set_maximized(server->focused_view->xdg_toplevel,
+				if (maximizeView(server->focused_view))
+					wlr_xdg_toplevel_set_maximized(server->focused_view->xdg_toplevel,
 				                               true);
 			} else {
 				unmaximizeView(server->focused_view);
