@@ -65,6 +65,10 @@ This starts the compositor.
  - Tiling
  - Changing monitor configurations
 
+## Things that you might need but are unimplemnted and not on the todolist
+ - XWayland support
+ - Layer shell support
+
 ## Bug fixes
  - Their is a momory leak when opening messages such as the hello message
  - When resizing a client with a popup/parent it should keep the popup centered to the parent
