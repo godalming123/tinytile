@@ -97,3 +97,4 @@ This starts the compositor.
 ## Implement protocols
  - Virtual keyboard (needs testing)
  - Drag icon
+ - Screencopy

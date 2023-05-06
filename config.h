@@ -1,5 +1,5 @@
 // This is the most important thing to change
-const char keyboardLayout[] = "gb";
+const char keyboardLayout[] = "us";
 
 // A monospace font is recomended because several menus rely on charecters being the same width
 const char font_description[] = "Mono 12";
@@ -8,7 +8,7 @@ const char font_description[] = "Mono 12";
 char term_cmd[] = "alacritty";
 
 // The command to be ran when you press alt + b
-char browser_cmd[] = "qutebrowser";
+char browser_cmd[] = "firefox";
 
 // The command that is ran when you press alt + e
 char filemanager_cmd[] = "nautilus";
@@ -23,7 +23,7 @@ int cursorSize = 24;
 const bool wrapClientPicker = false;
 
 // Makes gtk windows stop rounding corners and also stops them from letting you resize them
-const bool makeWindowsTile = true;
+const bool makeWindowsTile = false;
 
 // Makes other windows such as alcritty stop drawing titlebars and resizing borders
 const bool disableClientSideDecorations = true;
