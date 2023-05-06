@@ -20,9 +20,9 @@ If you get an error that is likely because you do not have the right dependencys
 
 ## 3. Configure settings for you
 Their are several settings that can be configured in the config.h file such as:
- - keyboard layout (default: `gb`)
+ - keyboard layout (default: `us`)
  - command to run a terminal (default: `alacritty`)
- - command to run a browser (default: `qutebrowser`)
+ - command to run a browser (default: `firefox`)
  - command to run a filemanager (default: `nautilus`)
 
 ## 4. Run `ninja -C build`
