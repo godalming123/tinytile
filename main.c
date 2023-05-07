@@ -370,10 +370,7 @@ static void createClientSideDecoration(struct wl_listener *listener, void *data)
 	                                        WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
 }
 
-static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
-	// Called when the surface is mapped, or ready to display on-screen.
-	struct tinywl_view *view = wl_container_of(listener, view, map);
-
+static void center_client(struct tinywl_view *view) {
 	// Get location to place view for it to be centered
 	struct wlr_box view_box;
 	wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &view_box);
@@ -393,14 +390,30 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 		view->y = (output->height - view_box.height) / 2;
 	}
 
+	// Make sure the view has proper margins
+	if (view->y < minMargin)
+		view->y = minMargin;
+	if (view->x < minMargin)
+		view->x = minMargin;
+
+	// Actually center it
+	wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
+}
+
+static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
+	// Called when the surface is mapped, or ready to display on-screen.
+	struct tinywl_view *view = wl_container_of(listener, view, map);
+
+	// Center the window
+	if (!viewUsesWholeScreen(view))
+		center_client(view);
+
+	// Consider making the window tile
 	if (makeWindowsTile) {
 		wlr_xdg_toplevel_set_tiled(view->xdg_toplevel, WLR_EDGE_TOP | WLR_EDGE_BOTTOM |
 		                                                       WLR_EDGE_LEFT |
 		                                                       WLR_EDGE_RIGHT);
 	}
-
-	// Actually center it
-	wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
 
 	// Insert the view into the list of views
 	if (view->server->focused_view)
@@ -628,6 +641,10 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 	case XKB_KEY_x:
 		run("systemctl suspend");
 		break;
+	case XKB_KEY_c:
+		if (server->focused_view && !viewUsesWholeScreen(server->focused_view))
+			center_client(server->focused_view);
+		break;
 	case XKB_KEY_a:
 		displayClientList(server);
 		break;
@@ -635,8 +652,8 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		if (server->focused_view) {
 			if (!viewUsesWholeScreen(server->focused_view)) {
 				if (maximizeView(server->focused_view))
-					wlr_xdg_toplevel_set_maximized(server->focused_view->xdg_toplevel,
-				                               true);
+					wlr_xdg_toplevel_set_maximized(
+					        server->focused_view->xdg_toplevel, true);
 			} else {
 				unmaximizeView(server->focused_view);
 				wlr_xdg_toplevel_set_fullscreen(server->focused_view->xdg_toplevel,

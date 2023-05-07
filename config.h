@@ -28,6 +28,10 @@ const bool makeWindowsTile = false;
 // Makes other windows such as alcritty stop drawing titlebars and resizing borders
 const bool disableClientSideDecorations = true;
 
+// The minimum x and y a view can be so that it does not end up with the top-left corner offscreen
+// due to view centering
+const int minMargin = 30;
+
 // Visual settings
 const int text_horizontal_padding = 8;
 const int text_vertical_padding = 3;

@@ -44,6 +44,7 @@ This starts the compositor.
  - *Keybindings for managing clients:*
     - Alt + q                  - close focused window
     - Alt + f                  - toggle wether a client is maxmized
+    - Alt + c                  - center the view
     - Alt + w/s                - go to previous/next windows with a menu
     - Super + w/s              - swap the focused window with the previous/next window (also with a menu)
     - Alt + a                  - show a list of open windows (hides as soon as you release alt)
