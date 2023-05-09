@@ -1,25 +1,27 @@
 # Tinytile
 
-A fork of tinywl designed to be a simple base for a tiling WM (but currently we have no features for tiling)
+A fork of tinywl designed to be a simple base for a tiling WM (but currently we have no features for tiling).
 
 # Building from source
 
 ## 1. Install dependencys
-| Distro | Command to install packages                                                    |
-|--------|--------------------------------------------------------------------------------|
-| Arch   | `sudo pacman -S wlroots wayland-protocols meson pango`                         |
-| Fedora | `sudo dnf install wlroots-devel wayland-protocols-devel meson gcc pango-devel` |
+| Distro | Command to install packages                                                           |
+|--------|---------------------------------------------------------------------------------------|
+| Arch   | `sudo pacman -S wlroots wayland-protocols meson pango pkg-config`                     |
+| Fedora | `sudo dnf install wlroots-devel wayland-protocols-devel meson pango-devel pkg-config` |
+ - In addition to this you will need a monospace font and **a c compiler**.
 
-If your distro of choice is not on this list:
- 1. Check that the distro packages wlroots 0.16 if not then you will have to compile wlroots yourself
- 2. If your distro has wlroots 0.16 then you can create an issue and I will try to test your distro and see what packages you need to install
+If your distro of choice is not on this list then:
+ - Check that the distro packages wlroots 0.16 if not then you will have to compile wlroots yourself
+ - If your distro has wlroots 0.16 then you can create an issue and I will try to test your distro and see what packages you need to install
+ - You could also try to create a list of needed packages yourself and if you are succsessful remember to tell me and I will add the packages to our dependency table
 
 ## 2. Run `meson build`
 This command configures a ninja buildfile in the `build/` directory to do the compiling.
-If you get an error that is likely because you do not have the right dependencys installed.
+If you get an error that is likely because you do not have the right dependencys installed although feel free to create an issue if you do not think that this is the case.
 
 ## 3. Configure settings for you
-Their are several settings that can be configured in the config.h file such as:
+Their are several settings that can be configured in the config.h file such as (but not limited to):
  - keyboard layout (default: `us`)
  - command to run a terminal (default: `alacritty`)
  - command to run a browser (default: `firefox`)
@@ -28,11 +30,11 @@ Their are several settings that can be configured in the config.h file such as:
 ## 4. Run `ninja -C build`
 This actually builds the software into an executable for your system.
 
-## 5. Run `ninja -C build install`
+## 5. *(optional)* Run `ninja -C build install`
 This installs the executable into `/usr/bin` for you.
 
-## 6. Run tinytile with the command `tinytile`
-This starts the compositor.
+## 6. Run tinytile with the command `tinytile`/`./build/tinytile`
+This starts the compositor, the reason that their are 2 commands is that if you did not install it to `/usr/bin` then you must use the later command.
 
 # Usage
 
@@ -57,16 +59,17 @@ This starts the compositor.
     - Alt + b                  - open your browser (set in config.h)
 
 **Other behaviours:**
- - You can press alt and then tap and hold on a window with left click to drag it or right click to resize it
+ - You can press alt and hold on a window with left click to drag it or right click to resize it
 
 # Todo
 
 ## Feature additions
  - Sloppy focus
  - Tiling
+ - A simple app launcher
  - Changing monitor configurations
 
-## Things that you might need but are unimplemnted and not on the todolist
+## Things that you might need but are not implemnted nor todos
  - XWayland support
  - Layer shell support
 
@@ -102,4 +105,4 @@ This starts the compositor.
 ## Implement protocols
  - Virtual keyboard (needs testing)
  - Drag icon
- - Screencopy
+ - Screencopy (although for some screen recorders this does not work as we do not implement the `output_manager` protocol)
