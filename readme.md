@@ -2,6 +2,8 @@
 
 A fork of tinywl designed to be a simple base for a tiling WM (but currently we have no features for tiling).
 
+Note: there is a feature demo [here](https://youtu.be/maESP00L36M).
+
 # Building from source
 
 ## 1. Install dependencys
