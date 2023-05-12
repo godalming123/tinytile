@@ -26,7 +26,7 @@ If your distro of choice is not on this list then:
  - If your distro has wlroots 0.16 then you can create an issue and I will try to test your distro and see what packages you need to install
  - You could also try to create a list of needed packages yourself and if you are succsessful remember to tell me the package names and I will add the packages to our dependency table
 
-## 2. Run `meson build`
+## 2. Run `meson setup build`
 This command configures a ninja buildfile in the `build/` directory to do the compiling. If you get an error that is likely because you do not have the right dependencys installed although feel free to create an issue if you do not think that this is the case.
 
 ## 3. Configure settings for you
