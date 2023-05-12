@@ -4,6 +4,10 @@ A fork of tinywl designed to be a simple base for a tiling WM (but currently we 
 
 Note: there is a feature demo [here](https://youtu.be/maESP00L36M).
 
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/godalming123/tinytile.svg)](https://starchart.cc/godalming123/tinytile)
+
 # Installing  with a binary
 
 Currently we have no support for binary packages or installing manually with a binary however this is planned in the future, and if you have an idea of how to achieve this then an issue/PR would be much appreciated.
