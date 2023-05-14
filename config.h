@@ -1,5 +1,6 @@
-// This is the most important thing to change
+// A few keyboard config options
 const char keyboardLayout[] = "us";
+const char keyboardOptns[] = ""; // EG: caps:escape
 
 // A monospace font is recomended because several menus rely on charecters being the same width
 const char font_description[] = "Mono 12";
