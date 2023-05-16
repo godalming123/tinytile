@@ -1,6 +1,5 @@
 #define _POSIX_C_SOURCE 200112L
 
-#include <assert.h>
 #include <linux/input-event-codes.h>
 #include <unistd.h>
 #include <wlr/backend/libinput.h>
@@ -13,6 +12,8 @@
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
+
+#define assert(x) {if (!(x)) return;};
 
 //////////////////////////////////
 //      STRUCTS AND ENUMS       //
@@ -924,7 +925,8 @@ static void server_new_keyboard(struct tinywl_server *server, struct wlr_input_d
 	// keyboard.
 	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 	struct xkb_keymap *keymap = xkb_keymap_new_from_names(
-	        context, &(struct xkb_rule_names){.layout = keyboardLayout, .options = keyboardOptns},
+	        context,
+	        &(struct xkb_rule_names){.layout = keyboardLayout, .options = keyboardOptns},
 	        XKB_KEYMAP_COMPILE_NO_FLAGS);
 
 	wlr_keyboard_set_keymap(wlr_keyboard, keymap);
