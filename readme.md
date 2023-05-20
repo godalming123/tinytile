@@ -49,6 +49,7 @@ This starts the compositor, the reason that their are 2 commands is that if you 
 
 **Keybindings:**
  - *General:*
+    - Just alt                 - toggle a simple meny where if you type and press enter you can launch apps
     - ALt + escape             - exit this compositor
     - Alt + h                  - open the project usage instructions in a browser
     - Alt + x                  - sleep your system
@@ -61,7 +62,7 @@ This starts the compositor, the reason that their are 2 commands is that if you 
     - Alt + a                  - show a list of open clients (hides as soon as you release alt)
  - *Keybindings for moving/resizing clients:*
     - Alt + shift + W/A/S/D    - move a client
-    - Alt + control + W/A/S/D  - resize a client
+    - Alt + control + w/a/s/d  - resize a client
  - *Keybindings to open apps:*
     - Alt + enter              - open your terminal (set in config.h)
     - Alt + e                  - open your filemanager (set in config.h)
@@ -75,7 +76,6 @@ This starts the compositor, the reason that their are 2 commands is that if you 
 ## Feature additions
  - Sloppy focus
  - Tiling
- - A simple app launcher
  - Changing monitor configurations
 
 ## Things that you might need but are not implemnted nor todos
@@ -112,6 +112,7 @@ This starts the compositor, the reason that their are 2 commands is that if you 
     - Moving/resizing clients with the keyboard
     - Launching a terminal, browser, and file explorer
  - Add option to make clients both have or don't have CSD and wether clients should be set to tile
+ - Make a simple menu to run commands
 ## Implement protocols
  - Virtual keyboard (needs testing)
  - Drag icon

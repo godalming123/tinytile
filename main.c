@@ -13,7 +13,11 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 
-#define assert(x) {if (!(x)) return;};
+#define assert(x)                                                                                  \
+	{                                                                                          \
+		if (!(x))                                                                          \
+			return;                                                                    \
+	};
 
 //////////////////////////////////
 //      STRUCTS AND ENUMS       //
@@ -33,7 +37,7 @@ enum tinywl_cursor_mode {
 enum tinywl_message_type {
 	TinywlMsgNone,
 	TinywlMsgHello,
-	TinywlMsgRun, // TODO
+	TinywlMsgRun,
 	TinywlMsgClientsList,
 };
 
@@ -58,9 +62,6 @@ struct tinywl_server {
 	struct wlr_allocator *allocator;
 	struct wlr_scene *scene;
 	struct wlr_scene_tree *layers[NUM_TINYWL_LAYERS];
-
-	bool ignoreNextAltRelease;
-	struct tinywl_message message;
 
 	struct wlr_xdg_decoration_manager_v1 *xdg_decoration_mgr;
 	struct wlr_xdg_shell *xdg_shell;
@@ -93,6 +94,10 @@ struct tinywl_server {
 	struct wlr_output_layout *output_layout;
 	struct wl_list outputs;
 	struct wl_listener new_output;
+
+	bool ignoreNextAltRelease;
+	struct tinywl_message message;
+	char search_text[]; // This must be at the back
 };
 
 struct tinywl_output {
@@ -141,6 +146,10 @@ static void run(char *cmdTxt) {
 	if (fork() == 0) {
 		exit(system(cmdTxt));
 	}
+}
+
+static inline bool messageIsSearchable(struct tinywl_message message) {
+	return message.type == TinywlMsgHello || message.type == TinywlMsgRun;
 }
 
 static struct tinywl_view *getPrevView(struct tinywl_server *server, bool wrap) {
@@ -325,6 +334,7 @@ static void focus_view(struct tinywl_view *parent_view) {
 		if (prev_surface == view->xdg_toplevel->base->surface)
 			return;
 
+		server->focused_view = view;
 		if (prev_surface) {
 			// Deactivate the previously focused surface. This lets the
 			// client know it no longer has focus and the client will
@@ -338,7 +348,6 @@ static void focus_view(struct tinywl_view *parent_view) {
 
 		// Move the view to the front
 		wlr_scene_node_raise_to_top(&parent_view->scene_tree->node);
-		server->focused_view = view;
 
 		// Activate the new surface
 		wlr_xdg_toplevel_set_activated(view->xdg_toplevel, true);
@@ -855,12 +864,40 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 				return;
 			break;
 		default:
-			if (!modifiers && syms[nsyms - 1] == XKB_KEY_Escape && message_hide(server))
+			if (!modifiers && syms[nsyms - 1] == XKB_KEY_Escape &&
+			    message_hide(server)) {
 				// If we press escape and we are able to
 				// hide a popup message then we do not need
 				// to process the keypress as a compositor
 				// keybinding
+				server->search_text[0] = 0;
 				return;
+			}
+			if (messageIsSearchable(server->message)) {
+				if (syms[nsyms - 1] == XKB_KEY_Return) {
+					run(server->search_text);
+					server->search_text[0] = 0;
+					message_hide(server);
+				} else {
+					char buf[5]; // 4 UTF-8 bytes plus null terminator
+					xkb_state_key_get_utf8(keyboard->wlr_keyboard->xkb_state,
+					                       keycode, buf, sizeof(buf));
+					wchar_t wc;
+					mbstowcs(&wc, buf, 1);
+					if (wc != L'\0') {
+						if (wc == L'\b')
+							server->search_text
+							        [strlen(server->search_text) - 1] =
+							        '\0';
+						else
+							strcat(server->search_text, buf);
+
+						message_print(server, server->search_text,
+						              TinywlMsgRun);
+					}
+				}
+				return;
+			}
 		}
 	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
 		// if the alt modifier is being held and you release
@@ -877,17 +914,18 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 		}
 		if (modifiers == WLR_MODIFIER_ALT && syms[0] == XKB_KEY_Alt_L) {
 			if (!server->ignoreNextAltRelease) {
-				if (server->message.type != TinywlMsgHello) {
+				if (!messageIsSearchable(server->message)) {
 					time_t t = time(0);
 
 					char message[800] = "⏳️ ";
 					strcat(message, ctime(&t));
 					strcat(message,
-					       "🔍 Type to search (TODO)\n"
+					       "🔍 Just type to search\n"
 					       "?  Use the alt + h keybinding for more help");
 
 					message_print(server, message, TinywlMsgHello);
 				} else {
+					server->search_text[0] = 0;
 					message_hide(server);
 				}
 			}
@@ -1583,6 +1621,7 @@ int main(int argc, char *argv[]) {
 	server.ignoreNextAltRelease = false;
 	server.focused_view = NULL;
 	server.message.type = TinywlMsgNone;
+	server.search_text[0] = 0;
 
 	// Run the Wayland event loop. This does not return until
 	// you exit the compositor. Starting the backend rigged up
