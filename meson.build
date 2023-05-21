@@ -81,3 +81,4 @@ executable(
   install: true,
 )
 
+install_data('tinytile.fish', install_dir: '/usr/share/fish/completions')
