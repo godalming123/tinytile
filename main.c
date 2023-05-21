@@ -13,12 +13,6 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 
-#define assert(x)                                                                                  \
-	{                                                                                          \
-		if (!(x))                                                                          \
-			return;                                                                    \
-	};
-
 //////////////////////////////////
 //      STRUCTS AND ENUMS       //
 // (annotated for brevity sake) //
@@ -141,11 +135,33 @@ struct tinywl_keyboard {
 // HELPER FUNCTIONS //
 //////////////////////
 
-static void run(char *cmdTxt) {
+#define assert(x)                                                                                  \
+	{                                                                                          \
+		if (!(x))                                                                          \
+			return;                                                                    \
+	};
+
+static void run(char cmdTxt[]) {
 	// Simply runs a command in a forked process
 	if (fork() == 0) {
 		exit(system(cmdTxt));
 	}
+}
+
+static char *replaceChar(char *str, char find, char replace) {
+	char *current_pos = strchr(str, find);
+	while (current_pos) {
+		*current_pos = replace;
+		current_pos = strchr(current_pos, find);
+	}
+	return str;
+}
+
+static inline bool yesToBool(char string[]) {
+	if (!strcmp(string, "yes"))
+		return true;
+	else
+		return false;
 }
 
 static inline bool messageIsSearchable(struct tinywl_message message) {
@@ -419,7 +435,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 		center_client(view);
 
 	// Consider making the window tile
-	if (makeWindowsTile) {
+	if (makeClientsTile) {
 		wlr_xdg_toplevel_set_tiled(view->xdg_toplevel, WLR_EDGE_TOP | WLR_EDGE_BOTTOM |
 		                                                       WLR_EDGE_LEFT |
 		                                                       WLR_EDGE_RIGHT);
@@ -646,7 +662,7 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		killfocused(server);
 		break;
 	case XKB_KEY_Return:
-		run(term_cmd);
+		run(termCmd);
 		break;
 	case XKB_KEY_x:
 		run("systemctl suspend");
@@ -693,15 +709,8 @@ static bool handle_altbinding(struct tinywl_server *server, xkb_keysym_t sym) {
 		}
 		displayClientList(server);
 		break;
-	case XKB_KEY_e:
-		run(filemanager_cmd);
-		break;
-	case XKB_KEY_b:
-		run(browser_cmd);
-		break;
 	case XKB_KEY_h:
-		run("xdg-open "
-		    "https://github.com/godalming123/tinytile/blob/0.16.x/readme.md#usage");
+		run("xkb-open https://github.com/godalming123/tinytile#usage");
 		break;
 	default:
 		return false;
@@ -740,18 +749,18 @@ static bool handle_altctrl_binding(struct tinywl_server *server, xkb_keysym_t sy
 		switch (sym) {
 		case XKB_KEY_w:
 			resize_view(server->focused_view, geo_box.width,
-			            geo_box.height - pixelsToMoveWindows);
+			            geo_box.height - moveClientsBy);
 			break;
 		case XKB_KEY_a:
-			resize_view(server->focused_view, geo_box.width - pixelsToMoveWindows,
+			resize_view(server->focused_view, geo_box.width - moveClientsBy,
 			            geo_box.height);
 			break;
 		case XKB_KEY_s:
 			resize_view(server->focused_view, geo_box.width,
-			            geo_box.height + pixelsToMoveWindows);
+			            geo_box.height + moveClientsBy);
 			break;
 		case XKB_KEY_d:
-			resize_view(server->focused_view, geo_box.width + pixelsToMoveWindows,
+			resize_view(server->focused_view, geo_box.width + moveClientsBy,
 			            geo_box.height);
 			break;
 		default:
@@ -766,20 +775,18 @@ static bool handle_altshift_biding(struct tinywl_server *server, xkb_keysym_t sy
 		switch (sym) {
 		case XKB_KEY_W:
 			move_view(server->focused_view, server->focused_view->x,
-			          server->focused_view->y - pixelsToMoveWindows);
+			          server->focused_view->y - moveClientsBy);
 			break;
 		case XKB_KEY_A:
-			move_view(server->focused_view,
-			          server->focused_view->x - pixelsToMoveWindows,
+			move_view(server->focused_view, server->focused_view->x - moveClientsBy,
 			          server->focused_view->y);
 			break;
 		case XKB_KEY_S:
 			move_view(server->focused_view, server->focused_view->x,
-			          server->focused_view->y + pixelsToMoveWindows);
+			          server->focused_view->y + moveClientsBy);
 			break;
 		case XKB_KEY_D:
-			move_view(server->focused_view,
-			          server->focused_view->x + pixelsToMoveWindows,
+			move_view(server->focused_view, server->focused_view->x + moveClientsBy,
 			          server->focused_view->y);
 			break;
 		default:
@@ -1411,16 +1418,54 @@ void seat_start_drag(struct wl_listener *listener, void *data) {
 int main(int argc, char *argv[]) {
 	if (argc > 1) {
 		if (!strcmp(argv[1], "about")) {
-			printf("A fork of tinywl with some "
-			       "additional features based on "
-			       "wlroots "
+			printf("A fork of tinywl with some additional features based on wlroots "
 			       "0.16\n");
 			return EXIT_SUCCESS;
+		} else if (!strcmp(argv[1], "start")) {
+			// Loop through each option
+			for (int _ = 2; _ < (argc - 1); _ += 2) {
+				if (!strcmp(argv[_], "keyboardLayout")) {
+					keyboardLayout = argv[_ + 1];
+				} else if (!strcmp(argv[_], "keyboardOptn")) {
+					strcat(keyboardOptns, " ");
+					strcat(keyboardOptns, argv[_ + 1]);
+				} else if (!strcmp(argv[_], "disableCSD")) {
+					disableCSD = yesToBool(argv[_ + 1]);
+				} else if (!strcmp(argv[_], "makeClientsTile")) {
+					makeClientsTile = yesToBool(argv[_ + 1]);
+				} else if (!strcmp(argv[_], "minMargin")) {
+					minMargin = atoi(argv[_] + 1);
+				} else if (!strcmp(argv[_], "moveClientsBy")) {
+					moveClientsBy = atoi(argv[_ + 1]);
+				} else if (!strcmp(argv[_], "newClients")) {
+					// TODO support changing wether new clients should spawn
+					// mazimized, floating or if the client can choose
+				} else if (!strcmp(argv[_], "font")) {
+					fontDescription = replaceChar(argv[_ + 1], '_', ' ');
+				} else if (!strcmp(argv[_], "rounding")) {
+					rounding = atoi(argv[_ + 1]);
+				} else if (!strcmp(argv[_], "bg")) {
+					// TODO
+				} else if (!strcmp(argv[_], "fg")) {
+					// TODO
+				} else if (!strcmp(argv[_], "verticalPadding")) {
+					verticalPadding = atoi(argv[_ + 1]);
+				} else if (!strcmp(argv[_], "horizontalPadding")) {
+					horizontalPadding = atoi(argv[_ + 1]);
+				} else if (!strcmp(argv[_], "termCmd")) {
+					termCmd = argv[_ + 1];
+				} else {
+					fprintf(stderr, "%s is not a valid option", argv[_]);
+				}
+			}
+		} else {
+			fprintf(stderr,
+			        "%s is not a valid command, their are 2 commands; about and start.",
+			        argv[1]);
+			return EXIT_FAILURE;
 		}
-		fprintf(stderr,
-		        "%s is not a valid option, use the `about` "
-		        "command to see some info\n",
-		        argv[1]);
+	} else {
+		fprintf(stderr, "You must enter a command; either about or start.");
 		return EXIT_FAILURE;
 	}
 
@@ -1518,7 +1563,7 @@ int main(int argc, char *argv[]) {
 	wl_signal_add(&server.xdg_shell->events.new_surface, &server.new_xdg_surface);
 
 	// Setup decoration to be either server or client side
-	if (disableClientSideDecorations) {
+	if (disableCSD) {
 		server.xdg_decoration_mgr = wlr_xdg_decoration_manager_v1_create(server.wl_display);
 		wlr_server_decoration_manager_set_default_mode(
 		        wlr_server_decoration_manager_create(server.wl_display),

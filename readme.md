@@ -30,17 +30,14 @@ If your distro of choice is not on this list then:
 This command configures a ninja buildfile in the `build/` directory to do the compiling. If you get an error that is likely because you do not have the right dependencys installed although feel free to create an issue if you do not think that this is the case.
 
 ## 3. Configure settings for you
-Their are several settings that can be configured in the config.h file such as (but not limited to):
- - keyboard layout (default: `us`)
- - command to run a terminal (default: `alacritty`)
- - command to run a browser (default: `firefox`)
- - command to run a filemanager (default: `nautilus`)
+Configuration can be both compile time (in `config.h`) or runtime (with the `start.sh`) script.
+It should also be noted that some options are slightly more verbose in the `config.h` - they do not use perfectly the same names and syntax.
 
 ## 4. Run `ninja -C build`
 This actually builds the software into an executable for your system.
 
 ## 5. *(optional)* Run `ninja -C build install`
-This installs the executable into `/usr/bin` for you.
+This installs the executable into `/usr/bin` for you and required if you want to use runtime configuration.
 
 ## 6. Run tinytile with the command `tinytile` or `./build/tinytile`
 This starts the compositor, the reason that their are 2 commands is that if you did not install it to `/usr/bin` then you must use the later command.
@@ -48,11 +45,13 @@ This starts the compositor, the reason that their are 2 commands is that if you 
 # Usage
 
 **Keybindings:**
+ Item marked with ⚙️ are configurable both in the config.h file and at runtime with options.
  - *General:*
     - Just alt                 - toggle a simple meny where if you type and press enter you can launch apps
     - ALt + escape             - exit this compositor
     - Alt + h                  - open the project usage instructions in a browser
     - Alt + x                  - sleep your system
+    - Alt + enter              - open your terminal ⚙️
  - *Keybindings for managing clients:*
     - Alt + q                  - close focused client
     - Alt + f                  - toggle wether a client is maxmized
@@ -63,10 +62,6 @@ This starts the compositor, the reason that their are 2 commands is that if you 
  - *Keybindings for moving/resizing clients:*
     - Alt + shift + W/A/S/D    - move a client
     - Alt + control + w/a/s/d  - resize a client
- - *Keybindings to open apps:*
-    - Alt + enter              - open your terminal (set in config.h)
-    - Alt + e                  - open your filemanager (set in config.h)
-    - Alt + b                  - open your browser (set in config.h)
 
 **Other behaviours:**
  - You can press alt and hold on a client with left click to drag it or right click to resize it
@@ -113,6 +108,7 @@ This starts the compositor, the reason that their are 2 commands is that if you 
     - Launching a terminal, browser, and file explorer
  - Add option to make clients both have or don't have CSD and wether clients should be set to tile
  - Make a simple menu to run commands
+ - Allow configuration at run-time with options
 ## Implement protocols
  - Virtual keyboard (needs testing)
  - Drag icon

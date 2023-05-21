@@ -1,41 +1,18 @@
-// A few keyboard config options
-const char keyboardLayout[] = "gb";
-const char keyboardOptns[] = "caps:escape"; // EG: caps:escape
+char *keyboardLayout = "us";
+char *keyboardOptns = "";
 
-// A monospace font is recomended because several menus rely on charecters being the same width
-const char font_description[] = "Mono 12";
+bool wrapClientPicker = false;
+int moveClientsBy = 45;
+bool makeClientsTile = false;
+bool disableCSD = true;
+int minMargin = 30;
 
-// The command to be ran when you press alt + return
-char term_cmd[] = "alacritty";
-
-// The command to be ran when you press alt + b
-char browser_cmd[] = "firefox";
-
-// The command that is ran when you press alt + e
-char filemanager_cmd[] = "nautilus";
-
-// How far to move/resize windows with the keyboard
-int pixelsToMoveWindows = 45;
-
-// How big the cursor is
+char *fontDescription = "Mono 12";
 int cursorSize = 24;
+int horizontalPadding = 8;
+int verticalPadding = 3;
+int rounding = 15;
+float bgColor[4] = {0.156, 0.172, 0.203, 0.9};
+float fgColor[4] = {1.0, 1.0, 1.0, 1.0};
 
-// Wether to wrap around client picker from begining to end or vice versa
-const bool wrapClientPicker = false;
-
-// Makes gtk windows stop rounding corners and also stops them from letting you resize them
-const bool makeWindowsTile = false;
-
-// Makes other windows such as alcritty stop drawing titlebars and resizing borders
-const bool disableClientSideDecorations = true;
-
-// The minimum x and y a view can be so that it does not end up with the top-left corner offscreen
-// due to view centering
-const int minMargin = 30;
-
-// Visual settings
-const int text_horizontal_padding = 8;
-const int text_vertical_padding = 3;
-const int rounding_radius = 15;
-float message_bg_color[4] = {0.156, 0.172, 0.203, 0.9};
-float message_fg_color[4] = {1.0, 1.0, 1.0, 1.0};
+char *termCmd = "alacritty";

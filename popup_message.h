@@ -111,7 +111,8 @@ static const struct wlr_buffer_impl text_buffer_impl = {
         .end_data_ptr_access = text_buffer_end_data_ptr_access,
 };
 
-static struct tinywl_text_buffer text_buffer_create(uint32_t width, uint32_t height, uint32_t stride) {
+static struct tinywl_text_buffer text_buffer_create(uint32_t width, uint32_t height,
+                                                    uint32_t stride) {
 	struct tinywl_text_buffer buffer;
 
 	wlr_buffer_init(&buffer.base, &text_buffer_impl, width, height);
@@ -161,10 +162,9 @@ struct tinywl_text_buffer create_message_texture(const char *string, struct tiny
 
 	// Set width and height variables
 	int width, height;
-	get_text_size(c, string, output->wlr_output->scale, font_description, &width, &height,
-	              NULL);
-	width += 2 * text_horizontal_padding;
-	height += 2 * text_vertical_padding;
+	get_text_size(c, string, output->wlr_output->scale, fontDescription, &width, &height, NULL);
+	width += 2 * horizontalPadding;
+	height += 2 * verticalPadding;
 	cairo_surface_destroy(dummy_surface);
 	cairo_destroy(c);
 
@@ -176,14 +176,13 @@ struct tinywl_text_buffer create_message_texture(const char *string, struct tiny
 	cairo_font_options_destroy(fo);
 
 	// Draw rounded background
-	rounded_rectangle(cairo, 0, 0, width, height, rounding_radius, message_bg_color);
+	rounded_rectangle(cairo, 0, 0, width, height, rounding, bgColor);
 
 	// Draw text
-	cairo_set_source_rgba(cairo, message_fg_color[0], message_fg_color[1], message_fg_color[2],
-	                      message_fg_color[3]);
+	cairo_set_source_rgba(cairo, fgColor[0], fgColor[1], fgColor[2], fgColor[3]);
 	cairo_stroke(cairo);
-	cairo_move_to(cairo, text_horizontal_padding, text_vertical_padding);
-	pango_print(cairo, font_description, output->wlr_output->scale, string);
+	cairo_move_to(cairo, horizontalPadding, verticalPadding);
+	pango_print(cairo, fontDescription, output->wlr_output->scale, string);
 	cairo_surface_flush(surface);
 
 	// Draw cairo surface to wlroots buffer
@@ -227,8 +226,8 @@ void message_print(struct tinywl_server *server, const char *text, enum tinywl_m
 	int x = (output->wlr_output->width - width) / 2;
 	int y = (output->wlr_output->height - height) / 2;
 
-	server->message.message =
-	        wlr_scene_buffer_create(server->layers[TinywlLyrMessage], &server->message.buffer.base);
+	server->message.message = wlr_scene_buffer_create(server->layers[TinywlLyrMessage],
+	                                                  &server->message.buffer.base);
 	wlr_scene_node_raise_to_top(&server->message.message->node);
 	wlr_scene_node_set_enabled(&server->message.message->node, true);
 	struct wlr_box output_box;
