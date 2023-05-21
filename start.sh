@@ -1,7 +1,8 @@
 #!/bin/sh
+# Note that when options need to have a space in them then you should instaed use an underscore
 tinytile start\
   keyboardLayout   us\
-  keyboardOptn     caps:escape\
+  keyboardOptns    caps:escape\
 \
   termCmd           alacritty\
   disableCSD        yes\
