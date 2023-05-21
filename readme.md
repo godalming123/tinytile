@@ -30,7 +30,7 @@ If your distro of choice is not on this list then:
 This command configures a ninja buildfile in the `build/` directory to do the compiling. If you get an error that is likely because you do not have the right dependencys installed although feel free to create an issue if you do not think that this is the case.
 
 ## 3. Configure settings for you
-Configuration can be both compile time (in `config.h`) or runtime (with the `start.sh`) script.
+Configuration can be both compile time (in `config.h`) or runtime (with the `example-start.sh`) script.
 It should also be noted that some options are slightly more verbose in the `config.h` - they do not use perfectly the same names and syntax.
 
 ## 4. Run `ninja -C build`

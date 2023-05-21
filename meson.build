@@ -67,18 +67,5 @@ server_protos = declare_dependency(
 
 conf_data = configuration_data()
 
-executable(
-  meson.project_name(),
-  ['main.c', 'popup_message.h', 'config.h'],
-  dependencies: [
-    wlroots,
-    server_protos,
-    wayland_server,
-    xkbcommon,
-    libinput,
-    pangocairo,
-  ],
-  install: true,
-)
-
+subdir('src')
 install_data('tinytile.fish', install_dir: '/usr/share/fish/completions')
