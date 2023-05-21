@@ -506,28 +506,36 @@ static void begin_interactive(struct tinywl_view *view, enum tinywl_cursor_mode 
 			// If we are moving a popup then instead move the parent
 			view = getParentViewFromPopup(view);
 
-		server->grabbed_view = view;
-		server->cursor_mode = mode;
+		if (!view->xdg_toplevel->current.fullscreen) {
+			if (mode == TINYWL_CURSOR_MOVE) {
+				if (viewUsesWholeScreen(view)) {
+					server->grab_x = view->width / 2;
+					server->grab_y = minMargin;
+				} else {
+					server->grab_x = server->cursor->x - view->x;
+					server->grab_y = server->cursor->y - view->y;
+				}
+			} else if (!view->xdg_toplevel->current.maximized) {
+				struct wlr_box geo_box;
+				wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &geo_box);
 
-		if (mode == TINYWL_CURSOR_MOVE) {
-			server->grab_x = server->cursor->x - view->x;
-			server->grab_y = server->cursor->y - view->y;
-		} else {
-			struct wlr_box geo_box;
-			wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &geo_box);
+				double border_x = (view->x + geo_box.x) +
+				                  ((edges & WLR_EDGE_RIGHT) ? geo_box.width : 0);
+				double border_y = (view->y + geo_box.y) +
+				                  ((edges & WLR_EDGE_BOTTOM) ? geo_box.height : 0);
+				server->grab_x = server->cursor->x - border_x;
+				server->grab_y = server->cursor->y - border_y;
 
-			double border_x = (view->x + geo_box.x) +
-			                  ((edges & WLR_EDGE_RIGHT) ? geo_box.width : 0);
-			double border_y = (view->y + geo_box.y) +
-			                  ((edges & WLR_EDGE_BOTTOM) ? geo_box.height : 0);
-			server->grab_x = server->cursor->x - border_x;
-			server->grab_y = server->cursor->y - border_y;
+				server->grab_geobox = geo_box;
+				server->grab_geobox.x += view->x;
+				server->grab_geobox.y += view->y;
 
-			server->grab_geobox = geo_box;
-			server->grab_geobox.x += view->x;
-			server->grab_geobox.y += view->y;
+				server->resize_edges = edges;
+			} else
+				return;
 
-			server->resize_edges = edges;
+			server->grabbed_view = view;
+			server->cursor_mode = mode;
 		}
 	}
 }
@@ -1138,8 +1146,19 @@ static void update_drag_icon_position(struct tinywl_server *server) {
 static void process_cursor_motion(struct tinywl_server *server, uint32_t time) {
 	// If the mode is non-passthrough, then process the motion.
 	if (server->cursor_mode == TINYWL_CURSOR_MOVE) {
-		move_view(server->grabbed_view, server->cursor->x - server->grab_x,
-		          server->cursor->y - server->grab_y);
+		if (server->cursor->y > 0) {
+			server->grabbed_view->x = server->cursor->x - server->grab_x;
+			server->grabbed_view->y = server->cursor->y - server->grab_y;
+			if (server->grabbed_view->y < 0)
+				server->grabbed_view->y = 0;
+			unmaximizeView(server->grabbed_view);
+			if (server->grabbed_view->xdg_toplevel->current.maximized)
+				wlr_xdg_toplevel_set_maximized(server->grabbed_view->xdg_toplevel,
+				                               false);
+		} else if (!server->grabbed_view->xdg_toplevel->current.maximized) {
+			maximizeView(server->grabbed_view);
+			wlr_xdg_toplevel_set_maximized(server->grabbed_view->xdg_toplevel, true);
+		}
 		return;
 	} else if (server->cursor_mode == TINYWL_CURSOR_RESIZE) {
 		process_cursor_resize(server, time);
