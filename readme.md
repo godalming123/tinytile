@@ -44,10 +44,12 @@ This starts the compositor, the reason that their are 2 commands is that if you 
 
 # Usage
 
-**Keybindings:**
- Item marked with ⚙️ are configurable both in the config.h file and at runtime with options.
+## Keybindings:
+Items marked with ⚙️ are configurable (see above section on configuration).
  - *General:*
-    - Just alt                 - toggle a simple meny where if you type and press enter you can launch apps
+    - Just alt                 - toggle a simple meny where if you type and press enter you can launch appsa
+    - Alt + hold left click    - move a client
+    - Alt + hold right client  - resize a client
     - ALt + escape             - exit this compositor
     - Alt + h                  - open the project usage instructions in a browser
     - Alt + x                  - sleep your system
@@ -62,9 +64,6 @@ This starts the compositor, the reason that their are 2 commands is that if you 
  - *Keybindings for moving/resizing clients:*
     - Alt + shift + W/A/S/D    - move a client
     - Alt + control + w/a/s/d  - resize a client
-
-**Other behaviours:**
- - You can press alt and hold on a client with left click to drag it or right click to resize it
 
 # Todo
 
