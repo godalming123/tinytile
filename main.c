@@ -1426,9 +1426,8 @@ int main(int argc, char *argv[]) {
 			for (int _ = 2; _ < (argc - 1); _ += 2) {
 				if (!strcmp(argv[_], "keyboardLayout")) {
 					keyboardLayout = argv[_ + 1];
-				} else if (!strcmp(argv[_], "keyboardOptn")) {
-					strcat(keyboardOptns, " ");
-					strcat(keyboardOptns, argv[_ + 1]);
+				} else if (!strcmp(argv[_], "keyboardOptns")) {
+					keyboardOptns = replaceChar(argv[_ + 1], '_', ' ');
 				} else if (!strcmp(argv[_], "disableCSD")) {
 					disableCSD = yesToBool(argv[_ + 1]);
 				} else if (!strcmp(argv[_], "makeClientsTile")) {
@@ -1453,7 +1452,7 @@ int main(int argc, char *argv[]) {
 				} else if (!strcmp(argv[_], "horizontalPadding")) {
 					horizontalPadding = atoi(argv[_ + 1]);
 				} else if (!strcmp(argv[_], "termCmd")) {
-					termCmd = argv[_ + 1];
+					termCmd = replaceChar(argv[_ + 1], '_', ' ');
 				} else {
 					fprintf(stderr, "%s is not a valid option", argv[_]);
 				}
