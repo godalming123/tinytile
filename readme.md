@@ -80,6 +80,7 @@ Items marked with ⚙️ are configurable (see above section on configuration).
  - Their is a momory leak when opening messages such as the hello message
  - When resizing a client with a popup/parent it should keep the popup centered to the parent
  - Sometimes subsurfaces can go offscreen
+ - When you close and re-open a GTK window that was maximized it appears in the top-left thinking it is maximized but not being maximized
  - If you launch tinytile in another TTY and open an app that you had launched on another instance of tinytile it appears on the other instance (although this may be a wayland problem)
  - Another bug related to this is if you then switch to the TTY where the app was launched, close the app with a keyboard shortcut and open the window menu, then no window shows as focused and the compositor crashes when you close the window menu
 
