@@ -71,6 +71,15 @@ Items marked with ⚙️ are configurable (see above section on configuration).
  - Sloppy focus
  - Tiling
  - Changing monitor configurations
+ - Make the search actually *search* for apps rathor then just running a command
+ - Add more info to the alt menu (this list is everything I want in the final menu):
+    - Date & time
+    - Help such as type to search and a keybinding to see the help page
+    - CPU usage
+    - Memory usage as percantage *and* GB/MB used
+    - If you are on laptop, then battery charge and wether it is increasing, decreasing or staying the same
+    - An indicator that is displayed if you are not connected to internet (to check this I could use ping)
+    - Maybe show open apps in this menu rathor the the alt + a menu
 
 ## Things that you might need but are not implemnted nor todos
  - XWayland support
