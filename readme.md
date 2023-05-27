@@ -74,7 +74,7 @@ Items marked with ⚙️ are configurable (see above section on configuration).
  - Make the search actually *search* for apps rathor then just running a command
  - Add more info to the alt menu (this list is everything I want in the final menu):
     - Date & time
-    - Help such as type to search and a keybinding to see the help page
+    - How many updates you have
     - CPU usage
     - Memory usage as percantage *and* GB/MB used
     - If you are on laptop, then battery charge and wether it is increasing, decreasing or staying the same
