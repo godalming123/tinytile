@@ -47,7 +47,7 @@ This starts the compositor, the reason that their are 2 commands is that if you 
 ## Keybindings:
 Items marked with ⚙️ are configurable (see above section on configuration).
  - *General:*
-    - Just alt                 - toggle a simple meny where if you type and press enter you can launch appsa
+    - Just alt                 - toggle a simple meny where if you type and press enter you can launch apps
     - Alt + hold left click    - move a client
     - Alt + hold right client  - resize a client
     - ALt + escape             - exit this compositor
