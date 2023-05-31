@@ -376,7 +376,6 @@ static void focus_view(struct tinywl_view *parent_view) {
 			                               keyboard->keycodes, keyboard->num_keycodes,
 			                               &keyboard->modifiers);
 		}
-		process_motion(server, 0);
 	}
 }
 
@@ -429,6 +428,8 @@ static void center_client(struct tinywl_view *view) {
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	// Called when the surface is mapped, or ready to display on-screen.
 	struct tinywl_view *view = wl_container_of(listener, view, map);
+	struct tinywl_server *server = view->server;
+	struct wlr_cursor *cursor = server->cursor;
 
 	// Center the window
 	if (!viewUsesWholeScreen(view))
@@ -442,12 +443,16 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	}
 
 	// Insert the view into the list of views
-	if (view->server->focused_view)
-		wl_list_insert(&view->server->focused_view->link, &view->link);
+	if (server->focused_view)
+		wl_list_insert(&server->focused_view->link, &view->link);
 	else
-		wl_list_insert(&view->server->views, &view->link);
+		wl_list_insert(&server->views, &view->link);
 
 	focus_view(view);
+	// If the cursor is above the view
+	if ((view->x <= cursor->x) && (cursor->x <= view->x + view->width) &&
+	    (view->y <= cursor->y) && (cursor->y <= view->y + view->height))
+		process_motion(view->server, 0);
 }
 
 static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
@@ -459,18 +464,17 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 		reset_cursor_mode(view->server);
 	}
 
-	// If there are views that can be focused but aren't, then focus them
-	if (view->server->focused_view == view && wl_list_length(&view->server->views) > 1) {
-		struct tinywl_view *view_to_be_focused = getPrevView(view->server, true);
-		wl_list_remove(&view->link);
-		// We do not need to process motion if we will change the focused view as
-		// the focus view function already does that for us
-		focus_view(view_to_be_focused);
-	} else {
-		wl_list_remove(&view->link);
-		process_motion(view->server, 0);
-		view->server->focused_view = NULL;
+	// Update the focused view
+	if (view->server->focused_view == view) {
+		if (wl_list_length(&view->server->views) > 1)
+			focus_view(getPrevView(view->server, true));
+		else
+			view->server->focused_view = NULL;
 	}
+
+	// Remove the view
+	wl_list_remove(&view->link);
+	process_motion(view->server, 0);
 }
 
 static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
@@ -926,6 +930,7 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 			// the clients list
 			message_hide(server);
 			focus_view(server->focused_view);
+			process_motion(server, 0);
 		}
 		if (modifiers == WLR_MODIFIER_ALT && syms[0] == XKB_KEY_Alt_L) {
 			if (!server->ignoreNextAltRelease) {
