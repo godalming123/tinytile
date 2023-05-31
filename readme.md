@@ -47,7 +47,7 @@ This starts the compositor, the reason that their are 2 commands is that if you 
 ## Keybindings:
 Items marked with ⚙️ are configurable (see above section on configuration).
  - *General:*
-    - Just alt                 - toggle a simple meny where if you type and press enter you can launch appsa
+    - Just alt                 - toggle a simple meny where if you type and press enter you can launch apps
     - Alt + hold left click    - move a client
     - Alt + hold right client  - resize a client
     - ALt + escape             - exit this compositor
@@ -71,6 +71,15 @@ Items marked with ⚙️ are configurable (see above section on configuration).
  - Sloppy focus
  - Tiling
  - Changing monitor configurations
+ - Make the search actually *search* for apps rathor then just running a command
+ - Add more info to the alt menu (this list is everything I want in the final menu):
+    - Date & time
+    - How many updates you have
+    - CPU usage
+    - Memory usage as percantage *and* GB/MB used
+    - If you are on laptop, then battery charge and wether it is increasing, decreasing or staying the same
+    - An indicator that is displayed if you are not connected to internet (to check this I could use ping)
+    - Maybe show open apps in this menu rathor the the alt + a menu
 
 ## Things that you might need but are not implemnted nor todos
  - XWayland support
@@ -80,6 +89,7 @@ Items marked with ⚙️ are configurable (see above section on configuration).
  - Their is a momory leak when opening messages such as the hello message
  - When resizing a client with a popup/parent it should keep the popup centered to the parent
  - Sometimes subsurfaces can go offscreen
+ - When you close and re-open a GTK window that was maximized it appears in the top-left thinking it is maximized but not being maximized
  - If you launch tinytile in another TTY and open an app that you had launched on another instance of tinytile it appears on the other instance (although this may be a wayland problem)
  - Another bug related to this is if you then switch to the TTY where the app was launched, close the app with a keyboard shortcut and open the window menu, then no window shows as focused and the compositor crashes when you close the window menu
 
