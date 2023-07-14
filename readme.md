@@ -24,7 +24,7 @@ A fork of tinywl designed to be a simple base for a tiling WM written in zig wit
  - Python - too slow + over complexity
 
 # Todo
-The basics:
+## The basics:
  - [ ] Allow switching virtual terminals
  - [ ] Cursor pressed move off surface fix
  - [ ] Add configuration for pointers via libinput (allows mouse acceleration)
@@ -42,7 +42,7 @@ The basics:
     - Keyboard options (to rebind keys)
     - command to be ran to open a terminal
     - command to be ran to open a web browser
-Things that will take more time:
+## Things that will take more time:
  - [ ] Tiling functionality (and removal of floating functionality)
     - [ ] Fullscreen clients
     - [ ] Splits
