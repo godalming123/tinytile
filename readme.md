@@ -1,12 +1,12 @@
-# Tinytile
+# TINYTILE
 ***NOTE:*** that this is not the default branch, but instead one that is re-written in zig with simalar goals, the similaritys END THERE.
 A fork of tinywl designed to be a simple base for a tiling WM written in zig with wlroots version `0.16`.
 
-## Stargazers over time
+# Stargazers over time
 [![Stargazers over time](https://starchart.cc/godalming123/tinytile.svg)](https://starchart.cc/godalming123/tinytile)
 
-# Other language options:
-## Not usable because the bindings are out of date:
+# Other language options that could be considered for this project:
+## Not usable because the wlroots bindings are out of date:
  - Golang
  - Haskell
  - Ocaml
@@ -55,7 +55,6 @@ A fork of tinywl designed to be a simple base for a tiling WM written in zig wit
        - Memory usage as % and GB/MB used
        - Perhaps how many updates you have
        - Network status
-
 ## Things that I consider bloat and will not implement
  - XWayland support
  - Layer shell support
