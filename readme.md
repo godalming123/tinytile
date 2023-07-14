@@ -42,10 +42,13 @@ A fork of tinywl designed to be a simple base for a tiling WM written in zig wit
     - Keyboard options (to rebind keys)
     - command to be ran to open a terminal
     - command to be ran to open a web browser
+## The bug fixes:
+ - [ ] Clients start at a floating size and then resize to the new size which wastes CPU and is visible to the user
 ## Things that will take more time:
  - [ ] Tiling functionality (and removal of floating functionality)
     - [ ] Fullscreen clients
     - [ ] Splits
+    - [X] Spawn windows maximized to the pointer focused monitor by default
  - [ ] A menu system (requieres font rendering):
     - [ ] Be able to switch (and reorder) apps with a list of open windows
     - [ ] An overlay panel in the corner of the screen to display info such as:

@@ -62,13 +62,6 @@ const Server = struct {
     cursor_axis: wl.Listener(*wlr.Pointer.event.Axis) = wl.Listener(*wlr.Pointer.event.Axis).init(cursorAxis),
     cursor_frame: wl.Listener(*wlr.Cursor) = wl.Listener(*wlr.Cursor).init(cursorFrame),
 
-    cursor_mode: enum { passthrough, move, resize } = .passthrough,
-    grabbed_view: ?*View = null,
-    grab_x: f64 = 0,
-    grab_y: f64 = 0,
-    grab_box: wlr.Box = undefined,
-    resize_edges: wlr.Edges = .{},
-
     fn init(server: *Server) !void {
         const wl_server = try wl.Server.create();
         const backend = try wlr.Backend.autocreate(wl_server);
@@ -170,8 +163,6 @@ const Server = struct {
                 xdg_surface.events.map.add(&view.map);
                 xdg_surface.events.unmap.add(&view.unmap);
                 xdg_surface.events.destroy.add(&view.destroy);
-                xdg_surface.role_data.toplevel.events.request_move.add(&view.request_move);
-                xdg_surface.role_data.toplevel.events.request_resize.add(&view.request_resize);
             },
             .popup => {
                 // These asserts are fine since tinywl.zig doesn't support anything else that can
@@ -298,60 +289,12 @@ const Server = struct {
     }
 
     fn processCursorMotion(server: *Server, time_msec: u32) void {
-        switch (server.cursor_mode) {
-            .passthrough => if (server.viewAt(server.cursor.x, server.cursor.y)) |res| {
-                server.seat.pointerNotifyEnter(res.surface, res.sx, res.sy);
-                server.seat.pointerNotifyMotion(time_msec, res.sx, res.sy);
-            } else {
-                server.cursor_mgr.setCursorImage("left_ptr", server.cursor);
-                server.seat.pointerClearFocus();
-            },
-            .move => {
-                const view = server.grabbed_view.?;
-                view.x = @floatToInt(i32, server.cursor.x - server.grab_x);
-                view.y = @floatToInt(i32, server.cursor.y - server.grab_y);
-                view.scene_tree.node.setPosition(view.x, view.y);
-            },
-            .resize => {
-                const view = server.grabbed_view.?;
-                const border_x = @floatToInt(i32, server.cursor.x - server.grab_x);
-                const border_y = @floatToInt(i32, server.cursor.y - server.grab_y);
-
-                var new_left = server.grab_box.x;
-                var new_right = server.grab_box.x + server.grab_box.width;
-                var new_top = server.grab_box.y;
-                var new_bottom = server.grab_box.y + server.grab_box.height;
-
-                if (server.resize_edges.top) {
-                    new_top = border_y;
-                    if (new_top >= new_bottom)
-                        new_top = new_bottom - 1;
-                } else if (server.resize_edges.bottom) {
-                    new_bottom = border_y;
-                    if (new_bottom <= new_top)
-                        new_bottom = new_top + 1;
-                }
-
-                if (server.resize_edges.left) {
-                    new_left = border_x;
-                    if (new_left >= new_right)
-                        new_left = new_right - 1;
-                } else if (server.resize_edges.right) {
-                    new_right = border_x;
-                    if (new_right <= new_left)
-                        new_right = new_left + 1;
-                }
-
-                var geo_box: wlr.Box = undefined;
-                view.xdg_surface.getGeometry(&geo_box);
-                view.x = new_left - geo_box.x;
-                view.y = new_top - geo_box.y;
-                view.scene_tree.node.setPosition(view.x, view.y);
-
-                const new_width = new_right - new_left;
-                const new_height = new_bottom - new_top;
-                _ = view.xdg_surface.role_data.toplevel.setSize(new_width, new_height);
-            },
+        if (server.viewAt(server.cursor.x, server.cursor.y)) |res| {
+            server.seat.pointerNotifyEnter(res.surface, res.sx, res.sy);
+            server.seat.pointerNotifyMotion(time_msec, res.sx, res.sy);
+        } else {
+            server.cursor_mgr.setCursorImage("left_ptr", server.cursor);
+            server.seat.pointerClearFocus();
         }
     }
 
@@ -361,10 +304,10 @@ const Server = struct {
     ) void {
         const server = @fieldParentPtr(Server, "cursor_button", listener);
         _ = server.seat.pointerNotifyButton(event.time_msec, event.button, event.state);
-        if (event.state == .released) {
-            server.cursor_mode = .passthrough;
-        } else if (server.viewAt(server.cursor.x, server.cursor.y)) |res| {
-            server.focusView(res.view, res.surface);
+        if (event.state == .pressed) {
+            if (server.viewAt(server.cursor.x, server.cursor.y)) |res| {
+                server.focusView(res.view, res.surface);
+            }
         }
     }
 
@@ -429,17 +372,16 @@ const View = struct {
     xdg_surface: *wlr.XdgSurface,
     scene_tree: *wlr.SceneTree,
 
-    x: i32 = 0,
-    y: i32 = 0,
-
     map: wl.Listener(void) = wl.Listener(void).init(map),
     unmap: wl.Listener(void) = wl.Listener(void).init(unmap),
     destroy: wl.Listener(void) = wl.Listener(void).init(destroy),
-    request_move: wl.Listener(*wlr.XdgToplevel.event.Move) = wl.Listener(*wlr.XdgToplevel.event.Move).init(requestMove),
-    request_resize: wl.Listener(*wlr.XdgToplevel.event.Resize) = wl.Listener(*wlr.XdgToplevel.event.Resize).init(requestResize),
 
     fn map(listener: *wl.Listener(void)) void {
         const view = @fieldParentPtr(View, "map", listener);
+        const monitor = @ptrCast(*wlr.Output, wlr.OutputLayout.outputAt(view.server.output_layout, view.server.cursor.x, view.server.cursor.y));
+        const monitor_pos = @ptrCast(*wlr.OutputLayout.Output, wlr.OutputLayout.get(view.server.output_layout, monitor));
+        _ = view.xdg_surface.role_data.toplevel.setSize(monitor.width, monitor.height);
+        view.scene_tree.node.setPosition(monitor_pos.x, monitor_pos.y);
         view.server.views.prepend(view);
         view.server.focusView(view, view.xdg_surface.surface);
     }
@@ -455,46 +397,8 @@ const View = struct {
         view.map.link.remove();
         view.unmap.link.remove();
         view.destroy.link.remove();
-        view.request_move.link.remove();
-        view.request_resize.link.remove();
 
         gpa.destroy(view);
-    }
-
-    fn requestMove(
-        listener: *wl.Listener(*wlr.XdgToplevel.event.Move),
-        _: *wlr.XdgToplevel.event.Move,
-    ) void {
-        const view = @fieldParentPtr(View, "request_move", listener);
-        const server = view.server;
-        server.grabbed_view = view;
-        server.cursor_mode = .move;
-        server.grab_x = server.cursor.x - @intToFloat(f64, view.x);
-        server.grab_y = server.cursor.y - @intToFloat(f64, view.y);
-    }
-
-    fn requestResize(
-        listener: *wl.Listener(*wlr.XdgToplevel.event.Resize),
-        event: *wlr.XdgToplevel.event.Resize,
-    ) void {
-        const view = @fieldParentPtr(View, "request_resize", listener);
-        const server = view.server;
-
-        server.grabbed_view = view;
-        server.cursor_mode = .resize;
-        server.resize_edges = event.edges;
-
-        var box: wlr.Box = undefined;
-        view.xdg_surface.getGeometry(&box);
-
-        const border_x = view.x + box.x + if (event.edges.right) box.width else 0;
-        const border_y = view.y + box.y + if (event.edges.bottom) box.height else 0;
-        server.grab_x = server.cursor.x - @intToFloat(f64, border_x);
-        server.grab_y = server.cursor.y - @intToFloat(f64, border_y);
-
-        server.grab_box = box;
-        server.grab_box.x += view.x;
-        server.grab_box.y += view.y;
     }
 };
 
