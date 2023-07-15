@@ -35,10 +35,10 @@ A fork of tinywl designed to be a simple base for a tiling WM written in zig wit
  - [ ] Implement drag icons
  - [ ] Implement the screen copy protocol
  - [ ] Basic keybindings for:
-    - Suspending/shutting down/rebooting
-    - Opening a terminal
-    - Opening a web browser
-    - Closing the focused window
+    - [ ] Suspending/shutting down/rebooting
+    - [ ] Opening a terminal
+    - [ ] Opening a web browser
+    - [X] Closing the focused window
  - [ ] Basic config options for things such as - need to be customizable with command line arguments:
     - Keyboard layout
     - Keyboard options (to rebind keys)

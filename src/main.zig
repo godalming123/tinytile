@@ -336,6 +336,8 @@ const Server = struct {
         switch (@enumToInt(key)) {
             // Exit the compositor
             xkb.Keysym.Escape => server.wl_server.terminate(),
+            // Closes focused window
+            xkb.Keysym.q => @fieldParentPtr(View, "link", server.views.link.next.?).xdg_surface.role_data.toplevel.sendClose(),
             // Focus the next view in the stack, pushing the current top to the back
             xkb.Keysym.F1 => {
                 if (server.views.length() < 2) return true;
