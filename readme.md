@@ -6,11 +6,12 @@ A fork of tinywl designed to be a simple base for a tiling WM written in zig wit
 [![Stargazers over time](https://starchart.cc/godalming123/tinytile.svg)](https://starchart.cc/godalming123/tinytile)
 
 # Other language options that could be considered for this project:
-## Not usable because the wlroots bindings are out of date:
- - Golang
+## Not usable becuase the bindings are still on 0.15:
+ - Golang - has a PR for wlroots 0.17 which will be merged when that is released
+ - Rust
+## Not usable because the wlroots bindings are far out of date (3+ years):
  - Haskell
  - Ocaml
- - Rust
 ## Not usable because the languages cannot build wayland compositors:
  - Godot
  - Qt
@@ -30,6 +31,7 @@ A fork of tinywl designed to be a simple base for a tiling WM written in zig wit
  - [ ] Add configuration for pointers via libinput (allows mouse acceleration)
  - [ ] Make gtk popups spawn in the center of their parents
  - [ ] Disable CSD and make clients think they are tiling
+ - [ ] Make sure that the mouse always has the correct icon for what it is pointing over
  - [ ] Implement drag icons
  - [ ] Implement the screen copy protocol
  - [ ] Basic keybindings for:
