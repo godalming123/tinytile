@@ -85,6 +85,13 @@ struct tinytile_keyboard {
   struct wl_listener destroy;
 };
 
+static void run(const char* command) {
+  if (fork() == 0) {
+    system(command);
+    exit(0);
+  }
+}
+
 static void focus_view(struct tinytile_view* view,
                        struct wlr_surface* surface) {
   /* Note: this function only deals with keyboard focus. */
@@ -146,34 +153,6 @@ static void keyboard_handle_modifiers(struct wl_listener* listener,
                                      &keyboard->wlr_keyboard->modifiers);
 }
 
-static bool handle_keybinding(struct tinytile_server* server,
-                              xkb_keysym_t sym) {
-  /*
-   * Here we handle compositor keybindings. This is when the compositor is
-   * processing keys, rather than passing them on to the client for its own
-   * processing.
-   *
-   * This function assumes Alt is held down.
-   */
-  switch (sym) {
-    case XKB_KEY_Escape:
-      wl_display_terminate(server->wl_display);
-      break;
-    case XKB_KEY_F1:
-      /* Cycle to the next view */
-      if (wl_list_length(&server->views) < 2) {
-        break;
-      }
-      struct tinytile_view* next_view =
-          wl_container_of(server->views.prev, next_view, link);
-      focus_view(next_view, next_view->xdg_toplevel->base->surface);
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-
 static void keyboard_handle_key(struct wl_listener* listener, void* data) {
   /* This event is raised when a key is pressed or released. */
   struct tinytile_keyboard* keyboard = wl_container_of(listener, keyboard, key);
@@ -188,23 +167,52 @@ static void keyboard_handle_key(struct wl_listener* listener, void* data) {
   int nsyms =
       xkb_state_key_get_syms(keyboard->wlr_keyboard->xkb_state, keycode, &syms);
 
-  bool handled = false;
   uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
-  if ((modifiers & WLR_MODIFIER_ALT) &&
+  if ((modifiers == WLR_MODIFIER_ALT) &&
       event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
     /* If alt is held down and this button was _pressed_, we attempt to
      * process it as a compositor keybinding. */
-    for (int i = 0; i < nsyms; i++) {
-      handled = handle_keybinding(server, syms[i]);
+    switch (syms[nsyms - 1]) {
+      case XKB_KEY_Escape:
+        wl_display_terminate(server->wl_display);
+        return;
+      case XKB_KEY_j:
+        /* Cycle to the next view */
+        if (wl_list_length(&server->views) >= 2) {
+          struct tinytile_view* next_view =
+              wl_container_of(server->views.prev, next_view, link);
+          focus_view(next_view, next_view->xdg_toplevel->base->surface);
+        }
+        return;
+      case XKB_KEY_q:
+        if (wl_list_length(&server->views) >= 1) {
+          struct tinytile_view* focused_view =
+              wl_container_of(server->views.next, focused_view, link);
+          wlr_xdg_toplevel_send_close(focused_view->xdg_toplevel);
+        }
+        return;
+      case XKB_KEY_Return:
+        run("/bin/alacritty");
+        return;
+      case XKB_KEY_b:
+        run("/bin/firefox");
+        return;
+      case XKB_KEY_x:
+        run("/bin/systemctl suspend");
+        return;
+      case XKB_KEY_s:
+        run("/bin/systemctl poweroff");
+        return;
+      case XKB_KEY_r:
+        run("/bin/systemctl reboot");
+        return;
     }
   }
 
-  if (!handled) {
-    /* Otherwise, we pass it along to the client. */
-    wlr_seat_set_keyboard(seat, keyboard->wlr_keyboard);
-    wlr_seat_keyboard_notify_key(seat, event->time_msec, event->keycode,
-                                 event->state);
-  }
+  /* If we haven't return yet, pass the keypress along to the client. */
+  wlr_seat_set_keyboard(seat, keyboard->wlr_keyboard);
+  wlr_seat_keyboard_notify_key(seat, event->time_msec, event->keycode,
+                               event->state);
 }
 
 static void keyboard_handle_destroy(struct wl_listener* listener, void* data) {

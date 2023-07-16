@@ -15,11 +15,11 @@ A fork of tinywl designed to be a simple base for a tiling WM.
  - [ ] Make sure that the mouse always has the correct icon for what it is pointing over
  - [ ] Implement drag icons
  - [ ] Implement the screen copy protocol
- - [ ] Basic keybindings for:
-    - [ ] Suspending/shutting down/rebooting
-    - [ ] Opening a terminal
-    - [ ] Opening a web browser
-    - [ ] Closing the focused window
+ - [X] Basic keybindings for:
+    - [X] Suspending/shutting down/rebooting
+    - [X] Opening a terminal
+    - [X] Opening a web browser
+    - [X] Closing the focused window
  - [ ] Basic config options for things such as - need to be customizable with command line arguments:
     - Keyboard layout
     - Keyboard options (to rebind keys)
@@ -27,6 +27,7 @@ A fork of tinywl designed to be a simple base for a tiling WM.
     - command to be ran to open a web browser
 ## The bug fixes:
  - [ ] Clients start at a floating size and then resize to the new size which wastes CPU and is visible to the user
+ - [ ] Command are executed in sh which wastes ~10Mb of ram per command
 ## Things that will take more time:
  - [ ] Tiling functionality (and removal of floating functionality)
     - [ ] Fullscreen clients
