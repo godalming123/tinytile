@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
+#include <wlr/backend/libinput.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_compositor.h>
@@ -265,11 +266,20 @@ static void server_new_keyboard(struct tinytile_server* server,
 
 static void server_new_pointer(struct tinytile_server* server,
                                struct wlr_input_device* device) {
-  /* We don't do anything special with pointers. All of our pointer handling
-   * is proxied through wlr_cursor. On another compositor, you might take this
-   * opportunity to do libinput configuration on the device to set
-   * acceleration, etc. */
-  wlr_cursor_attach_input_device(server->cursor, device);
+  /* We don't do anything special with pointers; all of our pointer handling
+   * consists of setting up mouse accelaration on libinput and then getting
+   * wlroots to do the dirty work. */
+  struct wlr_pointer* pointer = wlr_pointer_from_input_device(device);
+  if (wlr_input_device_is_libinput(&pointer->base)) {
+    struct libinput_device* libinput_device =
+        (struct libinput_device*)wlr_libinput_get_device_handle(&pointer->base);
+    if (libinput_device_config_accel_is_available(libinput_device)) {
+      libinput_device_config_accel_set_profile(
+          libinput_device, LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE);
+      libinput_device_config_accel_set_speed(libinput_device, 0.75);
+    }
+    wlr_cursor_attach_input_device(server->cursor, device);
+  }
 }
 
 static void server_new_input(struct wl_listener* listener, void* data) {

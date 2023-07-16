@@ -9,7 +9,7 @@ A fork of tinywl designed to be a simple base for a tiling WM.
 ## The basics:
  - [ ] Allow switching virtual terminals
  - [ ] Cursor pressed move off surface fix
- - [ ] Add configuration for pointers via libinput (allows mouse acceleration)
+ - [X] Add configuration for pointers via libinput (allows mouse acceleration)
  - [ ] Make gtk popups spawn in the center of their parents
  - [ ] Disable CSD and make clients think they are tiling
  - [ ] Make sure that the mouse always has the correct icon for what it is pointing over
