@@ -581,8 +581,8 @@ static void xdg_toplevel_map(struct wl_listener* listener, void* data) {
       view->xdg_toplevel,
       WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 
-  // Resize the client to be the size of the monitor that the cursor is currently
-  // at
+  // Resize the client to be the size of the monitor that the cursor is
+  // currently at
   struct wlr_output* monitor = wlr_output_layout_output_at(
       view->server->output_layout, view->server->cursor->x,
       view->server->cursor->y);
@@ -601,6 +601,18 @@ static void xdg_toplevel_map(struct wl_listener* listener, void* data) {
 static void xdg_toplevel_unmap(struct wl_listener* listener, void* data) {
   /* Called when the surface is unmapped, and should no longer be shown. */
   struct tinytile_view* view = wl_container_of(listener, view, unmap);
+
+  /* Update the focused view */
+  struct tinytile_view* focused_view =
+      wl_container_of(view->server->views.next, focused_view, link);
+  if (view == focused_view && wl_list_length(&view->server->views) >= 2) {
+    struct tinytile_view* view_to_be_focused =
+        wl_container_of(view->server->views.prev, view_to_be_focused, link);
+    focus_view(view_to_be_focused,
+               view_to_be_focused->xdg_toplevel->base->surface);
+  }
+
+  /* Remove the view */
   process_cursor_motion(view->server, 0);
   wl_list_remove(&view->link);
 }

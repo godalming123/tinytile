@@ -19,13 +19,14 @@ tinytile\
 ## The basics:
  - [ ] Allow switching virtual terminals
  - [ ] Cursor pressed move off surface fix
- - [X] Add configuration for pointers via libinput (allows mouse acceleration)
+ - [X] Add configuration for pointers via libinput (allows for mouse acceleration)
  - [ ] Make gtk popups spawn in the center of their parents
  - [X] Make clients think they are tiling so that they draw square borders
  - [ ] Make sure that the mouse always has the correct icon for what it is pointing over:
-    - When you open a window the cursor can be wrong
+    - When you open a window the cursor can be the wrong icon
  - [ ] Implement drag icons
  - [ ] Implement the screen copy protocol
+ - [X] Make sure that when you close a window it focuses another window
  - [X] Basic keybindings for:
     - [X] Suspending/shutting down/rebooting
     - [X] Opening a terminal
