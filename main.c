@@ -576,7 +576,12 @@ static void xdg_toplevel_map(struct wl_listener* listener, void* data) {
   /* Called when the surface is mapped, or ready to display on-screen. */
   struct tinytile_view* view = wl_container_of(listener, view, map);
 
-  // Resize the client to be the size of the monitor the the cursor is currently
+  // Make the client tile
+  wlr_xdg_toplevel_set_tiled(
+      view->xdg_toplevel,
+      WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
+
+  // Resize the client to be the size of the monitor that the cursor is currently
   // at
   struct wlr_output* monitor = wlr_output_layout_output_at(
       view->server->output_layout, view->server->cursor->x,
@@ -596,6 +601,7 @@ static void xdg_toplevel_map(struct wl_listener* listener, void* data) {
 static void xdg_toplevel_unmap(struct wl_listener* listener, void* data) {
   /* Called when the surface is unmapped, and should no longer be shown. */
   struct tinytile_view* view = wl_container_of(listener, view, unmap);
+  process_cursor_motion(view->server, 0);
   wl_list_remove(&view->link);
 }
 
