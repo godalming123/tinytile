@@ -5,6 +5,16 @@ A fork of tinywl designed to be a simple base for a tiling WM.
 # Stargazers over time
 [![Stargazers over time](https://starchart.cc/godalming123/tinytile.svg)](https://starchart.cc/godalming123/tinytile)
 
+# Configuration
+Configure tinytile with options when you run the launch command, you also need to note that for space-separeted inputs use an underscore instead of a space EG:
+```shell
+tinytile\
+  keyboradLayout gb\
+  keyboardOptns  caps:escape\
+  terminal       alacritty\
+  browser        qutebrowser
+```
+
 # Todo
 ## The basics:
  - [ ] Allow switching virtual terminals
@@ -20,7 +30,7 @@ A fork of tinywl designed to be a simple base for a tiling WM.
     - [X] Opening a terminal
     - [X] Opening a web browser
     - [X] Closing the focused window
- - [ ] Basic config options for things such as - need to be customizable with command line arguments:
+ - [X] Basic config options for things such as - need to be customizable with command line arguments:
     - Keyboard layout
     - Keyboard options (to rebind keys)
     - command to be ran to open a terminal

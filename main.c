@@ -27,6 +27,11 @@
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
 
+char* keyboard_layout = "us";
+char* keyboard_optns = "";
+char* terminal = "alacritty";
+char* browser = "firefox";
+
 struct tinytile_server {
   struct wl_display* wl_display;
   struct wlr_backend* backend;
@@ -85,6 +90,15 @@ struct tinytile_keyboard {
   struct wl_listener key;
   struct wl_listener destroy;
 };
+
+static char* replace_char(char* str, char find, char replace) {
+  char* current_pos = strchr(str, find);
+  while (current_pos) {
+    *current_pos = replace;
+    current_pos = strchr(current_pos, find);
+  }
+  return str;
+}
 
 static void run(const char* command) {
   if (fork() == 0) {
@@ -193,10 +207,10 @@ static void keyboard_handle_key(struct wl_listener* listener, void* data) {
         }
         return;
       case XKB_KEY_Return:
-        run("/bin/alacritty");
+        run(terminal);
         return;
       case XKB_KEY_b:
-        run("/bin/firefox");
+        run(browser);
         return;
       case XKB_KEY_x:
         run("/bin/systemctl suspend");
@@ -239,11 +253,13 @@ static void server_new_keyboard(struct tinytile_server* server,
   keyboard->server = server;
   keyboard->wlr_keyboard = wlr_keyboard;
 
-  /* We need to prepare an XKB keymap and assign it to the keyboard. This
-   * assumes the defaults (e.g. layout = "us"). */
+  /* We need to prepare an XKB keymap and assign it to the keyboard. */
   struct xkb_context* context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-  struct xkb_keymap* keymap =
-      xkb_keymap_new_from_names(context, NULL, XKB_KEYMAP_COMPILE_NO_FLAGS);
+  struct xkb_keymap* keymap = xkb_keymap_new_from_names(
+      context,
+      &(struct xkb_rule_names){.layout = keyboard_layout,
+                               .options = keyboard_optns},
+      XKB_KEYMAP_COMPILE_NO_FLAGS);
 
   wlr_keyboard_set_keymap(wlr_keyboard, keymap);
   xkb_keymap_unref(keymap);
@@ -560,6 +576,8 @@ static void xdg_toplevel_map(struct wl_listener* listener, void* data) {
   /* Called when the surface is mapped, or ready to display on-screen. */
   struct tinytile_view* view = wl_container_of(listener, view, map);
 
+  // Resize the client to be the size of the monitor the the cursor is currently
+  // at
   struct wlr_output* monitor = wlr_output_layout_output_at(
       view->server->output_layout, view->server->cursor->x,
       view->server->cursor->y);
@@ -649,22 +667,25 @@ static void server_new_xdg_surface(struct wl_listener* listener, void* data) {
 
 int main(int argc, char* argv[]) {
   wlr_log_init(WLR_DEBUG, NULL);
-  char* startup_cmd = NULL;
 
-  int c;
-  while ((c = getopt(argc, argv, "s:h")) != -1) {
-    switch (c) {
-      case 's':
-        startup_cmd = optarg;
-        break;
-      default:
-        printf("Usage: %s [-s startup command]\n", argv[0]);
-        return 0;
+  if (argc > 1) {
+    for (int _ = 1; _ < (argc - 1); _ += 2) {
+      if (!strcmp(argv[_], "terminal"))
+        terminal = replace_char(argv[_ + 1], '_', ' ');
+      if (!strcmp(argv[_], "browser"))
+        browser = replace_char(argv[_ + 1], '_', ' ');
+      else if (!strcmp(argv[_], "keyboardLayout"))
+        keyboard_layout = argv[_ + 1];
+      else if (!strcmp(argv[_], "keyboardOptns"))
+        keyboard_optns = replace_char(argv[_ + 1], '_', ' ');
+      else {
+        printf(
+            "The option '%s' is not a valid option please choose from either "
+            "terminal, keyboardLayout or keyboardOptns.",
+            argv[_]);
+        exit(1);
+      }
     }
-  }
-  if (optind < argc) {
-    printf("Usage: %s [-s startup command]\n", argv[0]);
-    return 0;
   }
 
   struct tinytile_server server;
@@ -817,11 +838,7 @@ int main(int argc, char* argv[]) {
   /* Set the WAYLAND_DISPLAY environment variable to our socket and run the
    * startup command if requested. */
   setenv("WAYLAND_DISPLAY", socket, true);
-  if (startup_cmd) {
-    if (fork() == 0) {
-      execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void*)NULL);
-    }
-  }
+
   /* Run the Wayland event loop. This does not return until you exit the
    * compositor. Starting the backend rigged up all of the necessary event
    * loop configuration to listen to libinput events, DRM events, generate
