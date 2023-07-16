@@ -597,6 +597,8 @@ static void xdg_toplevel_request_fullscreen(struct wl_listener* listener,
                                             void* data) {
   struct tinytile_view* view =
       wl_container_of(listener, view, request_fullscreen);
+  wlr_xdg_toplevel_set_fullscreen(view->xdg_toplevel,
+                                  view->xdg_toplevel->requested.fullscreen);
   wlr_xdg_surface_schedule_configure(view->xdg_toplevel->base);
 }
 

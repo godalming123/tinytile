@@ -30,7 +30,7 @@ A fork of tinywl designed to be a simple base for a tiling WM.
  - [ ] Command are executed in sh which wastes ~10Mb of ram per command
 ## Things that will take more time:
  - [ ] Tiling functionality (and removal of floating functionality)
-    - [ ] Fullscreen clients
+    - [X] Fullscreen clients
     - [ ] Splits
     - [X] Spawn windows maximized to the pointer focused monitor by default
  - [ ] A menu system (requieres font rendering):
