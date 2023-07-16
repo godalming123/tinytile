@@ -31,7 +31,7 @@ A fork of tinywl designed to be a simple base for a tiling WM.
  - [ ] Tiling functionality (and removal of floating functionality)
     - [ ] Fullscreen clients
     - [ ] Splits
-    - [ ] Spawn windows maximized to the pointer focused monitor by default
+    - [X] Spawn windows maximized to the pointer focused monitor by default
  - [ ] A menu system (requieres font rendering):
     - [ ] Be able to switch (and reorder) apps with a list of open windows
     - [ ] An overlay panel in the corner of the screen to display info such as:

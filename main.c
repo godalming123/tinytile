@@ -26,13 +26,6 @@
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
 
-/* For brevity's sake, struct members are annotated where they are used. */
-enum tinytile_cursor_mode {
-  TINYTILE_CURSOR_PASSTHROUGH,
-  TINYTILE_CURSOR_MOVE,
-  TINYTILE_CURSOR_RESIZE,
-};
-
 struct tinytile_server {
   struct wl_display* wl_display;
   struct wlr_backend* backend;
@@ -57,11 +50,6 @@ struct tinytile_server {
   struct wl_listener request_cursor;
   struct wl_listener request_set_selection;
   struct wl_list keyboards;
-  enum tinytile_cursor_mode cursor_mode;
-  struct tinytile_view* grabbed_view;
-  double grab_x, grab_y;
-  struct wlr_box grab_geobox;
-  uint32_t resize_edges;
 
   struct wlr_output_layout* output_layout;
   struct wl_list outputs;
@@ -84,11 +72,7 @@ struct tinytile_view {
   struct wl_listener map;
   struct wl_listener unmap;
   struct wl_listener destroy;
-  struct wl_listener request_move;
-  struct wl_listener request_resize;
-  struct wl_listener request_maximize;
   struct wl_listener request_fullscreen;
-  int x, y;
 };
 
 struct tinytile_keyboard {
@@ -101,7 +85,8 @@ struct tinytile_keyboard {
   struct wl_listener destroy;
 };
 
-static void focus_view(struct tinytile_view* view, struct wlr_surface* surface) {
+static void focus_view(struct tinytile_view* view,
+                       struct wlr_surface* surface) {
   /* Note: this function only deals with keyboard focus. */
   if (view == NULL) {
     return;
@@ -161,7 +146,8 @@ static void keyboard_handle_modifiers(struct wl_listener* listener,
                                      &keyboard->wlr_keyboard->modifiers);
 }
 
-static bool handle_keybinding(struct tinytile_server* server, xkb_keysym_t sym) {
+static bool handle_keybinding(struct tinytile_server* server,
+                              xkb_keysym_t sym) {
   /*
    * Here we handle compositor keybindings. This is when the compositor is
    * processing keys, rather than passing them on to the client for its own
@@ -239,7 +225,8 @@ static void server_new_keyboard(struct tinytile_server* server,
                                 struct wlr_input_device* device) {
   struct wlr_keyboard* wlr_keyboard = wlr_keyboard_from_input_device(device);
 
-  struct tinytile_keyboard* keyboard = calloc(1, sizeof(struct tinytile_keyboard));
+  struct tinytile_keyboard* keyboard =
+      calloc(1, sizeof(struct tinytile_keyboard));
   keyboard->server = server;
   keyboard->wlr_keyboard = wlr_keyboard;
 
@@ -334,11 +321,11 @@ static void seat_request_set_selection(struct wl_listener* listener,
 }
 
 static struct tinytile_view* desktop_view_at(struct tinytile_server* server,
-                                           double lx,
-                                           double ly,
-                                           struct wlr_surface** surface,
-                                           double* sx,
-                                           double* sy) {
+                                             double lx,
+                                             double ly,
+                                             struct wlr_surface** surface,
+                                             double* sx,
+                                             double* sy) {
   /* This returns the topmost node in the scene at the given layout coords.
    * we only care about surface nodes as we are specifically looking for a
    * surface in the surface tree of a tinytile_view. */
@@ -364,84 +351,9 @@ static struct tinytile_view* desktop_view_at(struct tinytile_server* server,
   return tree->node.data;
 }
 
-static void reset_cursor_mode(struct tinytile_server* server) {
-  /* Reset the cursor mode to passthrough. */
-  server->cursor_mode = TINYTILE_CURSOR_PASSTHROUGH;
-  server->grabbed_view = NULL;
-}
-
-static void process_cursor_move(struct tinytile_server* server, uint32_t time) {
-  /* Move the grabbed view to the new position. */
-  struct tinytile_view* view = server->grabbed_view;
-  view->x = server->cursor->x - server->grab_x;
-  view->y = server->cursor->y - server->grab_y;
-  wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
-}
-
-static void process_cursor_resize(struct tinytile_server* server, uint32_t time) {
-  /*
-   * Resizing the grabbed view can be a little bit complicated, because we
-   * could be resizing from any corner or edge. This not only resizes the view
-   * on one or two axes, but can also move the view if you resize from the top
-   * or left edges (or top-left corner).
-   *
-   * Note that I took some shortcuts here. In a more fleshed-out compositor,
-   * you'd wait for the client to prepare a buffer at the new size, then
-   * commit any movement that was prepared.
-   */
-  struct tinytile_view* view = server->grabbed_view;
-  double border_x = server->cursor->x - server->grab_x;
-  double border_y = server->cursor->y - server->grab_y;
-  int new_left = server->grab_geobox.x;
-  int new_right = server->grab_geobox.x + server->grab_geobox.width;
-  int new_top = server->grab_geobox.y;
-  int new_bottom = server->grab_geobox.y + server->grab_geobox.height;
-
-  if (server->resize_edges & WLR_EDGE_TOP) {
-    new_top = border_y;
-    if (new_top >= new_bottom) {
-      new_top = new_bottom - 1;
-    }
-  } else if (server->resize_edges & WLR_EDGE_BOTTOM) {
-    new_bottom = border_y;
-    if (new_bottom <= new_top) {
-      new_bottom = new_top + 1;
-    }
-  }
-  if (server->resize_edges & WLR_EDGE_LEFT) {
-    new_left = border_x;
-    if (new_left >= new_right) {
-      new_left = new_right - 1;
-    }
-  } else if (server->resize_edges & WLR_EDGE_RIGHT) {
-    new_right = border_x;
-    if (new_right <= new_left) {
-      new_right = new_left + 1;
-    }
-  }
-
-  struct wlr_box geo_box;
-  wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &geo_box);
-  view->x = new_left - geo_box.x;
-  view->y = new_top - geo_box.y;
-  wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
-
-  int new_width = new_right - new_left;
-  int new_height = new_bottom - new_top;
-  wlr_xdg_toplevel_set_size(view->xdg_toplevel, new_width, new_height);
-}
-
-static void process_cursor_motion(struct tinytile_server* server, uint32_t time) {
-  /* If the mode is non-passthrough, delegate to those functions. */
-  if (server->cursor_mode == TINYTILE_CURSOR_MOVE) {
-    process_cursor_move(server, time);
-    return;
-  } else if (server->cursor_mode == TINYTILE_CURSOR_RESIZE) {
-    process_cursor_resize(server, time);
-    return;
-  }
-
-  /* Otherwise, find the view under the pointer and send the event along. */
+static void process_cursor_motion(struct tinytile_server* server,
+                                  uint32_t time) {
+  /* Find the view under the pointer and send the event along. */
   double sx, sy;
   struct wlr_seat* seat = server->seat;
   struct wlr_surface* surface = NULL;
@@ -520,10 +432,7 @@ static void server_cursor_button(struct wl_listener* listener, void* data) {
   struct wlr_surface* surface = NULL;
   struct tinytile_view* view = desktop_view_at(
       server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-  if (event->state == WLR_BUTTON_RELEASED) {
-    /* If you released any buttons, we exit interactive move/resize mode. */
-    reset_cursor_mode(server);
-  } else {
+  if (event->state == WLR_BUTTON_PRESSED) {
     /* Focus that client if the button was _pressed_ */
     focus_view(view, surface);
   }
@@ -532,7 +441,8 @@ static void server_cursor_button(struct wl_listener* listener, void* data) {
 static void server_cursor_axis(struct wl_listener* listener, void* data) {
   /* This event is forwarded by the cursor when a pointer emits an axis event,
    * for example when you move the scroll wheel. */
-  struct tinytile_server* server = wl_container_of(listener, server, cursor_axis);
+  struct tinytile_server* server =
+      wl_container_of(listener, server, cursor_axis);
   struct wlr_pointer_axis_event* event = data;
   /* Notify the client with pointer focus of the axis event. */
   wlr_seat_pointer_notify_axis(server->seat, event->time_msec,
@@ -580,7 +490,8 @@ static void output_destroy(struct wl_listener* listener, void* data) {
 static void server_new_output(struct wl_listener* listener, void* data) {
   /* This event is raised by the backend when a new output (aka a display or
    * monitor) becomes available. */
-  struct tinytile_server* server = wl_container_of(listener, server, new_output);
+  struct tinytile_server* server =
+      wl_container_of(listener, server, new_output);
   struct wlr_output* wlr_output = data;
 
   /* Configures the output created by the backend to use our allocator
@@ -631,6 +542,16 @@ static void xdg_toplevel_map(struct wl_listener* listener, void* data) {
   /* Called when the surface is mapped, or ready to display on-screen. */
   struct tinytile_view* view = wl_container_of(listener, view, map);
 
+  struct wlr_output* monitor = wlr_output_layout_output_at(
+      view->server->output_layout, view->server->cursor->x,
+      view->server->cursor->y);
+  struct wlr_output_layout_output* monitor_pos =
+      wlr_output_layout_get(view->server->output_layout, monitor);
+  wlr_scene_node_set_position(&view->scene_tree->node, monitor_pos->x,
+                              monitor_pos->y);
+  wlr_xdg_toplevel_set_size(view->xdg_toplevel, monitor->width,
+                            monitor->height);
+
   wl_list_insert(&view->server->views, &view->link);
 
   focus_view(view, view->xdg_toplevel->base->surface);
@@ -639,12 +560,6 @@ static void xdg_toplevel_map(struct wl_listener* listener, void* data) {
 static void xdg_toplevel_unmap(struct wl_listener* listener, void* data) {
   /* Called when the surface is unmapped, and should no longer be shown. */
   struct tinytile_view* view = wl_container_of(listener, view, unmap);
-
-  /* Reset the cursor mode if the grabbed view was unmapped. */
-  if (view == view->server->grabbed_view) {
-    reset_cursor_mode(view->server);
-  }
-
   wl_list_remove(&view->link);
 }
 
@@ -655,90 +570,13 @@ static void xdg_toplevel_destroy(struct wl_listener* listener, void* data) {
   wl_list_remove(&view->map.link);
   wl_list_remove(&view->unmap.link);
   wl_list_remove(&view->destroy.link);
-  wl_list_remove(&view->request_move.link);
-  wl_list_remove(&view->request_resize.link);
-  wl_list_remove(&view->request_maximize.link);
   wl_list_remove(&view->request_fullscreen.link);
 
   free(view);
 }
 
-static void begin_interactive(struct tinytile_view* view,
-                              enum tinytile_cursor_mode mode,
-                              uint32_t edges) {
-  /* This function sets up an interactive move or resize operation, where the
-   * compositor stops propegating pointer events to clients and instead
-   * consumes them itself, to move or resize windows. */
-  struct tinytile_server* server = view->server;
-  struct wlr_surface* focused_surface =
-      server->seat->pointer_state.focused_surface;
-  if (view->xdg_toplevel->base->surface !=
-      wlr_surface_get_root_surface(focused_surface)) {
-    /* Deny move/resize requests from unfocused clients. */
-    return;
-  }
-  server->grabbed_view = view;
-  server->cursor_mode = mode;
-
-  if (mode == TINYTILE_CURSOR_MOVE) {
-    server->grab_x = server->cursor->x - view->x;
-    server->grab_y = server->cursor->y - view->y;
-  } else {
-    struct wlr_box geo_box;
-    wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &geo_box);
-
-    double border_x =
-        (view->x + geo_box.x) + ((edges & WLR_EDGE_RIGHT) ? geo_box.width : 0);
-    double border_y = (view->y + geo_box.y) +
-                      ((edges & WLR_EDGE_BOTTOM) ? geo_box.height : 0);
-    server->grab_x = server->cursor->x - border_x;
-    server->grab_y = server->cursor->y - border_y;
-
-    server->grab_geobox = geo_box;
-    server->grab_geobox.x += view->x;
-    server->grab_geobox.y += view->y;
-
-    server->resize_edges = edges;
-  }
-}
-
-static void xdg_toplevel_request_move(struct wl_listener* listener,
-                                      void* data) {
-  /* This event is raised when a client would like to begin an interactive
-   * move, typically because the user clicked on their client-side
-   * decorations. Note that a more sophisticated compositor should check the
-   * provided serial against a list of button press serials sent to this
-   * client, to prevent the client from requesting this whenever they want. */
-  struct tinytile_view* view = wl_container_of(listener, view, request_move);
-  begin_interactive(view, TINYTILE_CURSOR_MOVE, 0);
-}
-
-static void xdg_toplevel_request_resize(struct wl_listener* listener,
-                                        void* data) {
-  /* This event is raised when a client would like to begin an interactive
-   * resize, typically because the user clicked on their client-side
-   * decorations. Note that a more sophisticated compositor should check the
-   * provided serial against a list of button press serials sent to this
-   * client, to prevent the client from requesting this whenever they want. */
-  struct wlr_xdg_toplevel_resize_event* event = data;
-  struct tinytile_view* view = wl_container_of(listener, view, request_resize);
-  begin_interactive(view, TINYTILE_CURSOR_RESIZE, event->edges);
-}
-
-static void xdg_toplevel_request_maximize(struct wl_listener* listener,
-                                          void* data) {
-  /* This event is raised when a client would like to maximize itself,
-   * typically because the user clicked on the maximize button on
-   * client-side decorations. tinytile doesn't support maximization, but
-   * to conform to xdg-shell protocol we still must send a configure.
-   * wlr_xdg_surface_schedule_configure() is used to send an empty reply. */
-  struct tinytile_view* view = wl_container_of(listener, view, request_maximize);
-  wlr_xdg_surface_schedule_configure(view->xdg_toplevel->base);
-}
-
 static void xdg_toplevel_request_fullscreen(struct wl_listener* listener,
                                             void* data) {
-  /* Just as with request_maximize, we must send a configure here. */
   struct tinytile_view* view =
       wl_container_of(listener, view, request_fullscreen);
   wlr_xdg_surface_schedule_configure(view->xdg_toplevel->base);
@@ -784,12 +622,6 @@ static void server_new_xdg_surface(struct wl_listener* listener, void* data) {
 
   /* cotd */
   struct wlr_xdg_toplevel* toplevel = xdg_surface->toplevel;
-  view->request_move.notify = xdg_toplevel_request_move;
-  wl_signal_add(&toplevel->events.request_move, &view->request_move);
-  view->request_resize.notify = xdg_toplevel_request_resize;
-  wl_signal_add(&toplevel->events.request_resize, &view->request_resize);
-  view->request_maximize.notify = xdg_toplevel_request_maximize;
-  wl_signal_add(&toplevel->events.request_maximize, &view->request_maximize);
   view->request_fullscreen.notify = xdg_toplevel_request_fullscreen;
   wl_signal_add(&toplevel->events.request_fullscreen,
                 &view->request_fullscreen);
@@ -918,7 +750,6 @@ int main(int argc, char* argv[]) {
    *
    * And more comments are sprinkled throughout the notify functions above.
    */
-  server.cursor_mode = TINYTILE_CURSOR_PASSTHROUGH;
   server.cursor_motion.notify = server_cursor_motion;
   wl_signal_add(&server.cursor->events.motion, &server.cursor_motion);
   server.cursor_motion_absolute.notify = server_cursor_motion_absolute;
