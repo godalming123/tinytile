@@ -15,45 +15,62 @@ tinytile\
   browser        qutebrowser
 ```
 
+# Keybindings
+Use alt + `x` to `y` where:
+| `x` is ... | `y` is ...                 |
+|------------|----------------------------|
+| q          | close the focused window   |
+| j          | focus the next open window |
+| return     | open a terminal            |
+| b          | open a web browser         |
+| m          | open a system monitor      |
+| x          | suspend the system to ram  |
+| p          | power off the system       |
+| r          | reboot the system          |
+
 # Todo
 ## The basics:
  - [ ] Allow switching virtual terminals
  - [ ] Cursor pressed move off surface fix
- - [X] Add configuration for pointers via libinput (allows for mouse acceleration)
  - [ ] Make gtk popups spawn in the center of their parents
- - [X] Make clients think they are tiling so that they draw square borders
  - [ ] Make sure that the mouse always has the correct icon for what it is pointing over:
     - When you open a window the cursor can be the wrong icon
  - [ ] Implement drag icons
  - [ ] Implement the screen copy protocol
- - [X] Make sure that when you close a window it focuses another window
+ - [ ] Stop `xdg_popup`s from going off screen
+ - [X] Add configuration for pointers via libinput (allows for mouse acceleration)
+ - [X] Make clients think they are tiling so that they draw square borders
  - [X] Basic keybindings for:
     - [X] Suspending/shutting down/rebooting
     - [X] Opening a terminal
     - [X] Opening a web browser
+    - [X] Opening a system monitor
     - [X] Closing the focused window
  - [X] Basic config options for things such as - need to be customizable with command line arguments:
     - Keyboard layout
     - Keyboard options (to rebind keys)
-    - command to be ran to open a terminal
-    - command to be ran to open a web browser
+    - Command to be ran to open a terminal
+    - Command to be ran to open a web browser
+    - Command to be ran to open a system monitor
 ## The bug fixes:
  - [ ] Clients start at a floating size and then resize to the new size which wastes CPU and is visible to the user
- - [ ] Command are executed in sh which wastes ~10Mb of ram per command
+ - [ ] Command are executed in `sh` which is unnecarserry
 ## Things that will take more time:
- - [ ] Tiling functionality (and removal of floating functionality)
-    - [X] Fullscreen clients
-    - [ ] Splits
-    - [X] Spawn windows maximized to the pointer focused monitor by default
  - [ ] A menu system (requieres font rendering):
     - [ ] Be able to switch (and reorder) apps with a list of open windows
     - [ ] An overlay panel in the corner of the screen to display info such as:
        - Date & time
-       - Battery availble and wether it is charging, discharging or staying the same
+       - Battery available and wether it is charging, discharging or staying the same
        - CPU tempreture
        - Memory usage as % and GB/MB used
        - Perhaps how many updates you have
        - Network status
+ - [ ] Tiling functionality (and removal of floating functionality)
+    - [ ] Splits
+    - [ ] Be able to manage windows effectively with multiple monitors
+    - [X] Fullscreen clients
+    - [X] Spawn windows maximized to the pointer focused monitor by default
+    - [X] Make sure that when you close a window it focuses another window
 ## Things that I consider bloat and will not implement
  - XWayland support
  - Layer shell support

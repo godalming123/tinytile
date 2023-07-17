@@ -31,6 +31,7 @@ char* keyboard_layout = "us";
 char* keyboard_optns = "";
 char* terminal = "alacritty";
 char* browser = "firefox";
+char* system_monitor = "alacritty -e btop";
 
 struct tinytile_server {
   struct wl_display* wl_display;
@@ -212,10 +213,13 @@ static void keyboard_handle_key(struct wl_listener* listener, void* data) {
       case XKB_KEY_b:
         run(browser);
         return;
+      case XKB_KEY_m:
+        run(system_monitor);
+        return;
       case XKB_KEY_x:
         run("/bin/systemctl suspend");
         return;
-      case XKB_KEY_s:
+      case XKB_KEY_p:
         run("/bin/systemctl poweroff");
         return;
       case XKB_KEY_r:
@@ -607,7 +611,7 @@ static void xdg_toplevel_unmap(struct wl_listener* listener, void* data) {
       wl_container_of(view->server->views.next, focused_view, link);
   if (view == focused_view && wl_list_length(&view->server->views) >= 2) {
     struct tinytile_view* view_to_be_focused =
-        wl_container_of(view->server->views.prev, view_to_be_focused, link);
+        wl_container_of(view->server->views.next->next, view_to_be_focused, link);
     focus_view(view_to_be_focused,
                view_to_be_focused->xdg_toplevel->base->surface);
   }
@@ -690,16 +694,19 @@ int main(int argc, char* argv[]) {
     for (int _ = 1; _ < (argc - 1); _ += 2) {
       if (!strcmp(argv[_], "terminal"))
         terminal = replace_char(argv[_ + 1], '_', ' ');
-      if (!strcmp(argv[_], "browser"))
+      else if (!strcmp(argv[_], "browser"))
         browser = replace_char(argv[_ + 1], '_', ' ');
+      else if (!strcmp(argv[_], "systemMonitor"))
+        system_monitor = replace_char(argv[_ + 1], '_', ' ');
       else if (!strcmp(argv[_], "keyboardLayout"))
         keyboard_layout = argv[_ + 1];
       else if (!strcmp(argv[_], "keyboardOptns"))
         keyboard_optns = replace_char(argv[_ + 1], '_', ' ');
       else {
-        printf(
+        wlr_log(
+            WLR_ERROR,
             "The option '%s' is not a valid option please choose from either "
-            "terminal, keyboardLayout or keyboardOptns.",
+            "browser, terminal, systemMonitor, keyboardLayout or keyboardOptns.",
             argv[_]);
         exit(1);
       }
