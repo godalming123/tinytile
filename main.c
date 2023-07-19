@@ -1,31 +1,16 @@
 #define _POSIX_C_SOURCE 200112L
+
 #include <assert.h>
-#include <getopt.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
 #include <unistd.h>
-#include <wayland-server-core.h>
-#include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
-#include <wlr/types/wlr_compositor.h>
-#include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
-#include <wlr/types/wlr_input_device.h>
-#include <wlr/types/wlr_keyboard.h>
-#include <wlr/types/wlr_output.h>
-#include <wlr/types/wlr_output_layout.h>
-#include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_scene.h>
-#include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
-#include <xkbcommon/xkbcommon.h>
 
 char* keyboard_layout = "us";
 char* keyboard_optns = "";
@@ -860,8 +845,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  /* Set the WAYLAND_DISPLAY environment variable to our socket and run the
-   * startup command if requested. */
+  /* Set the WAYLAND_DISPLAY environment variable to our socket */
   setenv("WAYLAND_DISPLAY", socket, true);
 
   /* Run the Wayland event loop. This does not return until you exit the

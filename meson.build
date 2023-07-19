@@ -29,7 +29,6 @@ wayland_protos = dependency('wayland-protocols', version: '>=1.14')
 wayland_server = dependency('wayland-server')
 xkbcommon      = dependency('xkbcommon')
 libinput       = dependency('libinput')
-pangocairo     = dependency('pangocairo')
 
 wl_protocol_dir = wayland_protos.get_variable('pkgdatadir')
 wayland_scanner = find_program('wayland-scanner')
@@ -54,8 +53,6 @@ server_protos = declare_dependency(
   sources: server_protos_headers,
 )
 
-conf_data = configuration_data()
-
 executable(
   meson.project_name(),
   'main.c',
@@ -65,7 +62,6 @@ executable(
     wayland_server,
     xkbcommon,
     libinput,
-    pangocairo,
   ],
   install: true,
 )
