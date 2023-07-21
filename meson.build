@@ -22,46 +22,32 @@ if get_option('buildtype').startswith('debug')
   add_project_arguments('-DDEBUG', language : 'c')
 endif
 
-cc = meson.get_compiler('c')
-
-wlroots        = dependency('wlroots', version: '>= 0.16.0', fallback: ['wlroots', 'wlroots'])
-wayland_protos = dependency('wayland-protocols', version: '>=1.14')
-wayland_server = dependency('wayland-server')
-xkbcommon      = dependency('xkbcommon')
-libinput       = dependency('libinput')
-
-wl_protocol_dir = wayland_protos.get_variable('pkgdatadir')
-wayland_scanner = find_program('wayland-scanner')
-wayland_scanner_server = generator(
-  wayland_scanner,
-  output: '@BASENAME@-protocol.h',
-  arguments: ['server-header', '@INPUT@', '@OUTPUT@'],
-)
-
-server_protocols = [
+wl_protocol_dir = dependency('wayland-protocols', version: '>=1.14').get_variable('pkgdatadir')
+protocols_being_used = [
   [wl_protocol_dir, 'stable/xdg-shell/xdg-shell.xml'],
 ]
 
-server_protos_headers = []
-
-foreach p : server_protocols
-  xml = join_paths(p)
-  server_protos_headers += wayland_scanner_server.process(xml)
+headers_for_protocols_being_used = []
+foreach protocol : protocols_being_used
+  xml = join_paths(protocol)
+  headers_for_protocols_being_used += generator(
+    find_program('wayland-scanner'),
+    output: '@BASENAME@-protocol.h',
+    arguments: ['server-header', '@INPUT@', '@OUTPUT@'],
+  ).process(xml)
 endforeach
-
-server_protos = declare_dependency(
-  sources: server_protos_headers,
-)
 
 executable(
   meson.project_name(),
   'main.c',
   dependencies: [
-    wlroots,
-    server_protos,
-    wayland_server,
-    xkbcommon,
-    libinput,
+    dependency('wlroots', version: '>= 0.16.0', fallback: ['wlroots', 'wlroots']),
+    dependency('wayland-server'),
+    dependency('xkbcommon'),
+    dependency('libinput'),
+    declare_dependency(
+      sources: headers_for_protocols_being_used,
+    ),
   ],
   install: true,
 )

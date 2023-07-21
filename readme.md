@@ -12,7 +12,8 @@ tinytile\
   keyboradLayout gb\
   keyboardOptns  caps:escape\
   terminal       alacritty\
-  browser        qutebrowser
+  browser        qutebrowser\
+  systemMonitor  alacritty_-e_btop
 ```
 
 # Keybindings
