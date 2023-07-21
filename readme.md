@@ -36,8 +36,10 @@ Use alt + `x` to `y` where:
  - [ ] Make sure that the mouse always has the correct icon for what it is pointing over:
     - When you open a window the cursor can be the wrong icon
  - [ ] Implement drag icons
- - [ ] Implement the screen copy protocol
- - [ ] Stop `xdg_popup`s from going off screen
+ - [ ] Implement screen recording and screenshotting:
+    - [ ] Implement the output manager protocol
+    - [ ] Implement the scrrencopy protocol
+ - [-] Stop `xdg_popup`s from going off screen (some surfaces still go offscreen)
  - [X] Allow switching virtual terminals
  - [X] Add configuration for pointers via libinput (allows for mouse acceleration)
  - [X] Make clients think they are tiling so that they draw square borders

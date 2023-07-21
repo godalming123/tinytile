@@ -1,4 +1,3 @@
-#include <xkbcommon/xkbcommon-keysyms.h>
 #define _POSIX_C_SOURCE 200112L
 
 #include <assert.h>
@@ -685,6 +684,10 @@ static void server_new_xdg_surface(struct wl_listener* listener, void* data) {
         wlr_xdg_surface_from_wlr_surface(xdg_surface->popup->parent);
     struct wlr_scene_tree* parent_tree = parent->data;
     xdg_surface->data = wlr_scene_xdg_surface_create(parent_tree, xdg_surface);
+    struct wlr_output* monitor_view_is_on = wlr_output_layout_output_at(server->output_layout, xdg_surface->surface->sx, xdg_surface->surface->sy);
+    wlr_xdg_popup_unconstrain_from_box(
+        xdg_surface->popup,
+        &(struct wlr_box){.x = 0, .y = 0, .width = monitor_view_is_on->width, .height = monitor_view_is_on->height});
     return;
   }
   assert(xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL);
