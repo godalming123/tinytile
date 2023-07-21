@@ -31,7 +31,6 @@ Use alt + `x` to `y` where:
 
 # Todo
 ## The basics:
- - [ ] Allow switching virtual terminals
  - [ ] Cursor pressed move off surface fix
  - [ ] Make gtk popups spawn in the center of their parents
  - [ ] Make sure that the mouse always has the correct icon for what it is pointing over:
@@ -39,6 +38,7 @@ Use alt + `x` to `y` where:
  - [ ] Implement drag icons
  - [ ] Implement the screen copy protocol
  - [ ] Stop `xdg_popup`s from going off screen
+ - [X] Allow switching virtual terminals
  - [X] Add configuration for pointers via libinput (allows for mouse acceleration)
  - [X] Make clients think they are tiling so that they draw square borders
  - [X] Basic keybindings for:

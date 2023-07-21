@@ -1,3 +1,4 @@
+#include <xkbcommon/xkbcommon-keysyms.h>
 #define _POSIX_C_SOURCE 200112L
 
 #include <assert.h>
@@ -169,47 +170,87 @@ static void keyboard_handle_key(struct wl_listener* listener, void* data) {
       xkb_state_key_get_syms(keyboard->wlr_keyboard->xkb_state, keycode, &syms);
 
   uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
-  if ((modifiers == WLR_MODIFIER_ALT) &&
-      event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-    /* If alt is held down and this button was _pressed_, we attempt to
-     * process it as a compositor keybinding. */
-    switch (syms[nsyms - 1]) {
-      case XKB_KEY_Escape:
-        wl_display_terminate(server->wl_display);
-        return;
-      case XKB_KEY_j:
-        /* Cycle to the next view */
-        if (wl_list_length(&server->views) >= 2) {
-          struct tinytile_view* next_view =
-              wl_container_of(server->views.prev, next_view, link);
-          focus_view(next_view, next_view->xdg_toplevel->base->surface);
-        }
-        return;
-      case XKB_KEY_q:
-        if (wl_list_length(&server->views) >= 1) {
-          struct tinytile_view* focused_view =
-              wl_container_of(server->views.next, focused_view, link);
-          wlr_xdg_toplevel_send_close(focused_view->xdg_toplevel);
-        }
-        return;
-      case XKB_KEY_Return:
-        run(terminal);
-        return;
-      case XKB_KEY_b:
-        run(browser);
-        return;
-      case XKB_KEY_m:
-        run(system_monitor);
-        return;
-      case XKB_KEY_x:
-        run("/bin/systemctl suspend");
-        return;
-      case XKB_KEY_p:
-        run("/bin/systemctl poweroff");
-        return;
-      case XKB_KEY_r:
-        run("/bin/systemctl reboot");
-        return;
+  if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+    if (modifiers == WLR_MODIFIER_ALT) {
+      /* If alt is held down and this button was _pressed_, we attempt to
+       * process it as a compositor keybinding. */
+      switch (syms[nsyms - 1]) {
+        case XKB_KEY_Escape:
+          wl_display_terminate(server->wl_display);
+          return;
+        case XKB_KEY_j:
+          /* Cycle to the next view */
+          if (wl_list_length(&server->views) >= 2) {
+            struct tinytile_view* next_view =
+                wl_container_of(server->views.prev, next_view, link);
+            focus_view(next_view, next_view->xdg_toplevel->base->surface);
+          }
+          return;
+        case XKB_KEY_q:
+          if (wl_list_length(&server->views) >= 1) {
+            struct tinytile_view* focused_view =
+                wl_container_of(server->views.next, focused_view, link);
+            wlr_xdg_toplevel_send_close(focused_view->xdg_toplevel);
+          }
+          return;
+        case XKB_KEY_Return:
+          run(terminal);
+          return;
+        case XKB_KEY_b:
+          run(browser);
+          return;
+        case XKB_KEY_m:
+          run(system_monitor);
+          return;
+        case XKB_KEY_x:
+          run("/bin/systemctl suspend");
+          return;
+        case XKB_KEY_p:
+          run("/bin/systemctl poweroff");
+          return;
+        case XKB_KEY_r:
+          run("/bin/systemctl reboot");
+          return;
+      }
+    } else if (modifiers == (WLR_MODIFIER_ALT | WLR_MODIFIER_CTRL)) {
+      switch (syms[nsyms - 1]) {
+        case XKB_KEY_XF86Switch_VT_1:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 1);
+          return;
+        case XKB_KEY_XF86Switch_VT_2:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 2);
+          return;
+        case XKB_KEY_XF86Switch_VT_3:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 3);
+          return;
+        case XKB_KEY_XF86Switch_VT_4:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 4);
+          return;
+        case XKB_KEY_XF86Switch_VT_5:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 5);
+          return;
+        case XKB_KEY_XF86Switch_VT_6:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 6);
+          return;
+        case XKB_KEY_XF86Switch_VT_7:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 7);
+          return;
+        case XKB_KEY_XF86Switch_VT_8:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 8);
+          return;
+        case XKB_KEY_XF86Switch_VT_9:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 9);
+          return;
+        case XKB_KEY_XF86Switch_VT_10:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 10);
+          return;
+        case XKB_KEY_XF86Switch_VT_11:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 11);
+          return;
+        case XKB_KEY_XF86Switch_VT_12:
+          wlr_session_change_vt(wlr_backend_get_session(server->backend), 12);
+          return;
+      }
     }
   }
 
@@ -595,8 +636,8 @@ static void xdg_toplevel_unmap(struct wl_listener* listener, void* data) {
   struct tinytile_view* focused_view =
       wl_container_of(view->server->views.next, focused_view, link);
   if (view == focused_view && wl_list_length(&view->server->views) >= 2) {
-    struct tinytile_view* view_to_be_focused =
-        wl_container_of(view->server->views.next->next, view_to_be_focused, link);
+    struct tinytile_view* view_to_be_focused = wl_container_of(
+        view->server->views.next->next, view_to_be_focused, link);
     focus_view(view_to_be_focused,
                view_to_be_focused->xdg_toplevel->base->surface);
   }
@@ -691,7 +732,8 @@ int main(int argc, char* argv[]) {
         wlr_log(
             WLR_ERROR,
             "The option '%s' is not a valid option please choose from either "
-            "browser, terminal, systemMonitor, keyboardLayout or keyboardOptns.",
+            "browser, terminal, systemMonitor, keyboardLayout or "
+            "keyboardOptns.",
             argv[_]);
         exit(1);
       }
