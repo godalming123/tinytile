@@ -17,6 +17,7 @@ char* keyboard_optns = "";
 char* terminal = "alacritty";
 char* browser = "firefox";
 char* system_monitor = "alacritty -e btop";
+bool hide_cursor_at_top_left = false;
 
 struct tinytile_server {
   struct wl_display* wl_display;
@@ -86,10 +87,20 @@ static char* replace_char(char* str, char find, char replace) {
   return str;
 }
 
+static inline bool yes_to_bool(char string[]) {
+  if (!strcmp(string, "yes"))
+    return true;
+  else if (!strcmp(string, "no"))
+    return false;
+  else
+    wlr_log(WLR_ERROR, "Please say either yes or no instead of '%s'", string);
+  exit(EXIT_FAILURE);
+}
+
 static void run(const char* command) {
   if (fork() == 0) {
     system(command);
-    exit(0);
+    exit(EXIT_SUCCESS);
   }
 }
 
@@ -416,6 +427,12 @@ static struct tinytile_view* desktop_view_at(struct tinytile_server* server,
 
 static void process_cursor_motion(struct tinytile_server* server,
                                   uint32_t time) {
+  if (hide_cursor_at_top_left && server->cursor->x <= 3 &&
+      server->cursor->y <= 3) {
+    wlr_cursor_set_image(server->cursor, NULL, 0, 0, 0, 0, 0, 0);
+    wlr_seat_pointer_notify_clear_focus(server->seat);
+    return;
+  }
   /* Find the view under the pointer and send the event along. */
   double sx, sy;
   struct wlr_seat* seat = server->seat;
@@ -684,10 +701,15 @@ static void server_new_xdg_surface(struct wl_listener* listener, void* data) {
         wlr_xdg_surface_from_wlr_surface(xdg_surface->popup->parent);
     struct wlr_scene_tree* parent_tree = parent->data;
     xdg_surface->data = wlr_scene_xdg_surface_create(parent_tree, xdg_surface);
-    struct wlr_output* monitor_view_is_on = wlr_output_layout_output_at(server->output_layout, xdg_surface->surface->sx, xdg_surface->surface->sy);
+    struct wlr_output* monitor_view_is_on = wlr_output_layout_output_at(
+        server->output_layout, xdg_surface->surface->sx,
+        xdg_surface->surface->sy);
     wlr_xdg_popup_unconstrain_from_box(
         xdg_surface->popup,
-        &(struct wlr_box){.x = 0, .y = 0, .width = monitor_view_is_on->width, .height = monitor_view_is_on->height});
+        &(struct wlr_box){.x = 0,
+                          .y = 0,
+                          .width = monitor_view_is_on->width,
+                          .height = monitor_view_is_on->height});
     return;
   }
   assert(xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL);
@@ -725,6 +747,8 @@ int main(int argc, char* argv[]) {
         terminal = replace_char(argv[_ + 1], '_', ' ');
       else if (!strcmp(argv[_], "browser"))
         browser = replace_char(argv[_ + 1], '_', ' ');
+      else if (!strcmp(argv[_], "hideCursor"))
+        hide_cursor_at_top_left = yes_to_bool(argv[_ + 1]);
       else if (!strcmp(argv[_], "systemMonitor"))
         system_monitor = replace_char(argv[_ + 1], '_', ' ');
       else if (!strcmp(argv[_], "keyboardLayout"))
@@ -735,7 +759,7 @@ int main(int argc, char* argv[]) {
         wlr_log(
             WLR_ERROR,
             "The option '%s' is not a valid option please choose from either "
-            "browser, terminal, systemMonitor, keyboardLayout or "
+            "browser, terminal, systemMonitor, keyboardLayout, hideCursor or "
             "keyboardOptns.",
             argv[_]);
         exit(1);
@@ -890,6 +914,17 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  /* Either creates the cursor in its pocket if that is enabled, otherwise
+   * it is shown on the screen */
+  if (hide_cursor_at_top_left)
+    wlr_cursor_warp_closest(server.cursor, NULL, 0, 0);
+  else {
+    /* HACK: creates the cursor image which is normaly hidden */
+    wlr_cursor_warp_closest(server.cursor, NULL, 100, 100);
+    wlr_xcursor_manager_set_cursor_image(server.cursor_mgr, "left_ptr",
+                                         server.cursor);
+  }
+
   /* Set the WAYLAND_DISPLAY environment variable to our socket */
   setenv("WAYLAND_DISPLAY", socket, true);
 
@@ -903,5 +938,5 @@ int main(int argc, char* argv[]) {
   /* Once wl_display_run returns, we shut down the server. */
   wl_display_destroy_clients(server.wl_display);
   wl_display_destroy(server.wl_display);
-  return 0;
+  return EXIT_SUCCESS;
 }

@@ -13,7 +13,8 @@ tinytile\
   keyboardOptns  caps:escape\
   terminal       alacritty\
   browser        qutebrowser\
-  systemMonitor  alacritty_-e_btop
+  systemMonitor  alacritty_-e_btop\
+  hideCursor     yes
 ```
 
 # Keybindings
@@ -39,7 +40,8 @@ Use alt + `x` to `y` where:
  - [ ] Implement screen recording and screenshotting:
     - [ ] Implement the output manager protocol
     - [ ] Implement the scrrencopy protocol
- - [-] Stop `xdg_popup`s from going off screen (some surfaces still go offscreen)
+ - [WIP] Stop `xdg_popup`s from going off screen (some surfaces still go offscreen)
+ - [X] Add an option to hide the cursor if it is at the top left of the screen which allows for less distractions
  - [X] Allow switching virtual terminals
  - [X] Add configuration for pointers via libinput (allows for mouse acceleration)
  - [X] Make clients think they are tiling so that they draw square borders
