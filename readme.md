@@ -30,6 +30,14 @@ Use alt + `x` to `y` where:
 | p          | power off the system       |
 | r          | reboot the system          |
 
+# Style guide
+ - Format every `.c` and `.h` file with the provided `.clang-format` file
+ - Use `/* COMMENT */` for comments and `//` to comment out code blocks
+ - Name every variable with `snake_case`, enum values must `USE ALL CAPS` as well
+ - Here are some rules that may be broken, which if I can be bothered will make me rebase from default tinywl:
+   - Commits *should* be atomic - each commit implements one thing.
+   - The implementation of these features *should* only be modified if they need to work togethor with larger features - allows new developers to see how to implement everything individually ontop of base tinywl
+
 # Todo
 ## The basics:
  - [ ] Cursor pressed move off surface fix
