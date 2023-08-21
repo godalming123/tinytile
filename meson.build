@@ -1,6 +1,6 @@
 project('tinytile', 'c',
   version: '0.3.0',
-  license: 'MIT',
+  license: 'BSD-3-Clause',
   meson_version: '>=0.59.0',
   default_options: [
     'c_std=c11',

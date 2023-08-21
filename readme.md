@@ -1,6 +1,6 @@
 # TINYTILE
+A fork of tinywl designed to be a simple base for a tiling WM with less then 2000 lines of code under the BSD-3-Clause license (see LICENSE for more details).
 ***NOTE:*** that this is not the default branch, but instead one that is re-written with simalar goals, the similaritys END THERE.
-A fork of tinywl designed to be a simple base for a tiling WM.
 
 # Stargazers over time
 [![Stargazers over time](https://starchart.cc/godalming123/tinytile.svg)](https://starchart.cc/godalming123/tinytile)
